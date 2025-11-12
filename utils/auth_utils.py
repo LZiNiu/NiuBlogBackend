@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta
 from typing import Optional
-
+from fastapi import HTTPException
 import jwt
 
 from core.config import settings  # 假设配置文件在 core/config.py
 import uuid
 import time
+from model.common import JwtPayload
 from model.redis import get_redis_client
 
 
@@ -95,9 +96,9 @@ def decode_token(token: str, expected_type: Optional[str] = None) -> Optional[di
     except jwt.InvalidTokenError:
         return None
 
-    # 校验类型
-    if expected_type and payload.get("type") != expected_type:
-        return None
+    # # 校验类型
+    # if expected_type and payload.get("type") != expected_type:
+    #     return None
 
     # 校验过期
     exp = payload.get("exp")
@@ -108,15 +109,12 @@ def decode_token(token: str, expected_type: Optional[str] = None) -> Optional[di
 
     return payload
 
-def decode_access_token(token: str) -> Optional[dict]:
-    """解码访问令牌（兼容旧方法）"""
-    return decode_token(token, expected_type="access")
 
-def validate_access_token(token: str) -> Optional[dict]:
+def validate_access_token(token: str) -> Optional[JwtPayload]:
     """
     验证访问令牌：类型、过期与未撤销；返回 payload，失败返回 None。
     """
-    payload = decode_access_token(token)
+    payload = decode_token(token)
     if not payload:
         return None
     jti = payload.get("jti")
@@ -124,7 +122,7 @@ def validate_access_token(token: str) -> Optional[dict]:
         return None
     if is_token_revoked(jti):
         return None
-    return payload
+    return JwtPayload(**payload)
 
 def revoke_token(token: str) -> bool:
     """
@@ -140,3 +138,36 @@ def revoke_token(token: str) -> bool:
         return False
     _register_jti_revocation(jti, exp)
     return True
+
+
+def get_token(authorization: str) -> str:
+    """
+    从请求头的Authorization中获取token令牌
+
+    Args:
+        authorization (str): 
+
+    Returns:
+        str: token令牌
+    """
+    if authorization.startswith("Bearer "):
+        return authorization[len("Bearer "):].strip()
+    return authorization.strip()
+
+def get_payload(authorization: str) -> JwtPayload:
+    """从请求头中获取token令牌并解析出其中携带的用户信息
+
+    Args:
+        authorization (str): 请求头参数
+
+    Raises:
+        HTTPException: 令牌无效错误
+
+    Returns:
+        JwtPayload: 用户信息
+    """
+    token = get_token(authorization)
+    payload = validate_access_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="invalid token")
+    return payload

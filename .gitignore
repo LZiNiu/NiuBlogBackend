@@ -1,2 +1,5 @@
 .idea
-api/docs
+api/docs/
+.pytest_cache/
+**/__pycache__/
+./docs/

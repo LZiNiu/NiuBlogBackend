@@ -5,10 +5,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-import logging
+from utils.logger import setup_logging
 
-
-logger = logging.getLogger(__name__)
+# 获取 FastAPI 日志记录器
+logger = setup_logging("exception_hanlder")
 
 class CattleBlogException(Exception):
     """自定义异常基类"""

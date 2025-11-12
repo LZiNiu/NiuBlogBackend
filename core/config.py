@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     ALGORITHM: str
+    SUPER_ADMIN_USER_ID: int = 1
 
     LOG_LEVEL: str = "INFO"
     LOG_STACK_FRAMES: int = 6

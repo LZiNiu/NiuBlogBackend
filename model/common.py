@@ -7,7 +7,6 @@ T = TypeVar('T')
 
 class Result(BaseModel, Generic[T]):
     """统一响应包装类"""
-    success: bool
     code: int
     message: str
     data: Optional[T] = None
@@ -15,13 +14,19 @@ class Result(BaseModel, Generic[T]):
     @classmethod
     def success(cls, data: Optional[T] = None, message: str = "success", code: int = 200) -> "Result[T]":
         """成功响应"""
-        return cls(success=True, code=code, message=message, data=data)
+        return cls(code=code, message=message, data=data)
 
     @classmethod
     def failure(cls, message: str = "error", code: int = 500, data: Optional[T] = None) -> "Result[T]":
         """失败响应"""
-        return cls(success=False, code=code, message=message, data=data)
+        return cls(code=code, message=message, data=data)
 
+
+class JwtPayload(BaseModel):
+    """JWT 载荷模型"""
+    user_id: int | str
+    username: str
+    role: str
 
 class PagedVO(BaseModel):
     """分页响应 DTO（如需直接使用可保留），推荐使用 Result.page"""

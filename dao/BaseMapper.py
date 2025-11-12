@@ -1,6 +1,8 @@
-from typing import Generic, List, Optional, Type, TypeVar
+from typing import Any, Generic, List, Optional, Type, TypeVar
 
 from sqlmodel import Session, SQLModel, select
+from sqlmodel.sql.expression import Select
+from pydantic import BaseModel
 from sqlalchemy import func
 
 # 定义类型变量
@@ -156,7 +158,7 @@ class BaseMapper(Generic[ModelType]):
         """
         统计符合条件的记录数
         """
-        statement = select(func.count(self.model.id))  # type: ignore
+        statement = select(func.count()).select_from(self.model)
         for field, value in filters.items():
             if hasattr(self.model, field):
                 statement = statement.where(getattr(self.model, field) == value)
@@ -199,3 +201,31 @@ class BaseMapper(Generic[ModelType]):
         
         result = session.exec(statement)
         return list(result.all())
+
+    @staticmethod
+    def select_fields(sqlmodel_cls: type[SQLModel], fields: type[BaseModel] | dict[str, Any]) -> Select:
+        """
+        根据 Pydantic 模型的字段定义，从 SQLModel 类中选择对应的列
+
+        :param sqlmodel_cls: SQLModel 类
+        :param fields: Pydantic 模型或字段名字典
+        :return: SQLModel 的 Select 语句
+        """
+        fields_name = None
+        if isinstance(fields, dict):
+            fields_name = fields
+        else:
+            fields_name = fields.model_fields.keys()
+        field_names = list(fields_name)
+        
+        # 获取 SQLModel 的列
+        # 根据字段名选择 SQLModel 的列
+        selected_columns = []
+        for field_name in field_names:
+            col = getattr(sqlmodel_cls, field_name, None)
+            if col:
+                selected_columns.append(col)
+            else:
+                raise ValueError(f"Field '{field_name}' from Pydantic model not found in SQLModel '{sqlmodel_cls.__name__}'")
+        
+        return select(*selected_columns)

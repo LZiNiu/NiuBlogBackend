@@ -31,7 +31,7 @@ class ColorizedFormatter(logging.Formatter):
 
     def __init__(self, fmt: Optional[str] = None, datefmt: Optional[str] = None, max_frames: int = 6):
         fmt = fmt or "%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s"
-        datefmt = datefmt or "%H:%M:%S"
+        datefmt = datefmt or "%Y-%m-%d %H:%M:%S"
         super().__init__(fmt=fmt, datefmt=datefmt)
         self.max_frames = max_frames
 
@@ -64,11 +64,14 @@ class ColorizedFormatter(logging.Formatter):
         return "".join(["Traceback (most recent call last):\n", *trimmed, colored_exc])
 
 
-def setup_logging(level: str = "INFO", max_frames: int = 6) -> None:
+def setup_logging(name: str = None, level: str = "INFO", max_frames: int = 6) -> logging.Logger:
     """
     初始化根 logger，应用彩色格式器与浅堆栈。
     """
-    root = logging.getLogger()
+    if name:
+        root = logging.getLogger(name)
+    else:
+        root = logging.getLogger()
     root.setLevel(level.upper())
 
     # 清理已有 console handler，避免重复输出
@@ -77,6 +80,7 @@ def setup_logging(level: str = "INFO", max_frames: int = 6) -> None:
     console = logging.StreamHandler()
     console.setFormatter(ColorizedFormatter(max_frames=max_frames))
     root.addHandler(console)
+    return root
 
 
 def get_log_config(level: str = "INFO", max_frames: int = 6) -> dict:
@@ -88,7 +92,7 @@ def get_log_config(level: str = "INFO", max_frames: int = 6) -> dict:
         "disable_existing_loggers": False,
         "formatters": {
             "colorized": {
-                "()": "core.logger.ColorizedFormatter",
+                "()": "utils.logger.ColorizedFormatter",
                 "fmt": "%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s",
                 "datefmt": "%H:%M:%S",
                 "max_frames": max_frames,
@@ -102,9 +106,8 @@ def get_log_config(level: str = "INFO", max_frames: int = 6) -> dict:
             },
         },
         "loggers": {
-            "uvicorn": {"handlers": ["console"], "level": level.upper(), "propagate": False},
-            "uvicorn.error": {"handlers": ["console"], "level": level.upper(), "propagate": False},
-            "uvicorn.access": {"handlers": ["console"], "level": level.upper(), "propagate": False},
+            "uvicorn": {"handlers": ["default"], "level": "INFO", "propagate": False},
+            "uvicorn.access": {"handlers": ["access"], "level": "INFO", "propagate": False},
         },
         "root": {"handlers": ["console"], "level": level.upper()},
     }

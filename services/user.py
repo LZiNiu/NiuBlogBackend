@@ -1,16 +1,16 @@
 from fastapi import Depends
 from sqlmodel import Session
 
-import logging
 from handler.exception_handlers import AuthenticationException
 from dao.UserMapper import UserMapper, get_user_mapper
 from services.base import BaseService
 from model.db import get_session
+from model.common import JwtPayload
 from model.user import User, UserRegisterDTO
-from model.user import UserLoginRequest, UserLoginResponse, UserInfoVO
+from model.user import UserLoginRequest, UserLoginResponse, UserInfoVO, AdminCreateUserRequest
 from utils.cryptpwd import get_password_hash, verify_and_upgrade
-from utils.jwt_utils import create_access_token
-from utils.jwt_utils import revoke_token
+from utils.auth_utils import create_access_token
+from utils.auth_utils import revoke_token
 
 
 class UserService(BaseService):
@@ -53,7 +53,7 @@ class UserService(BaseService):
             self.logger.info("已升级用户密码哈希 username=%s", login_request.username)
 
         # 生成访问令牌
-        payload = {"sub": str(user.id), "username": user.username, "role": user.role}
+        payload = {"user_id": str(user.id), "username": user.username, "role": user.role}
         access_token = create_access_token(payload)
 
         # 组装用户信息
@@ -76,6 +76,53 @@ class UserService(BaseService):
         else:
             self.logger.warning("用户登出失败，令牌无效或已过期")
 
+    def admin_create_user(self, payload: JwtPayload, req: AdminCreateUserRequest) -> int:
+        """
+        管理员创建用户
+        :param actor_id: 执行操作的管理员ID
+        :param req: 用户创建请求
+        :return: 创建的用户ID
+        """
+        if payload.role != "admin":
+            self.logger.warning("管理员创建用户失败, actor_id=%d 不是管理员", payload.user_id)
+            raise AuthenticationException("您没有权限执行此操作")
+
+        # 创建用户
+        user = User(**req.model_dump())
+        user.password_hash = get_password_hash(req.password)
+        self.mapper.create(self.session, user)
+        return user.id
+    
+    def list_users(self, payload: JwtPayload, page: int = 1, page_size: int = 10) -> tuple[list[UserInfoVO], int]:
+        """
+        管理员查询所有用户信息
+        :param actor_id: 执行操作的管理员ID
+        :return: 用户信息列表
+        """
+        if payload.role != "admin":
+            self.logger.warning("管理员查询所有用户信息失败, actor_id=%d 不是管理员", payload.user_id)
+            raise AuthenticationException("您没有权限执行此操作")
+
+        # 查询所有用户
+        users = self.mapper.list_users_info(self.session, page, page_size)
+        total = self.mapper.count(self.session, is_active=True)
+        return users, total
+
+    def get_user_by_id(self, payload: JwtPayload, user_id: int) -> UserInfoVO:
+        """
+        管理员查询指定用户信息
+        :param actor_id: 执行操作的管理员ID
+        :param user_id: 用户ID
+        :return: 用户信息
+        """
+        if payload.role != "admin":
+            self.logger.warning("管理员查询指定用户信息失败, actor_id=%d 不是管理员", payload.user_id)
+            raise AuthenticationException("您没有权限执行此操作")
+
+        # 查询用户
+        user = self.mapper.get_user_info_by_id(self.session, user_id=user_id)
+        return user
+
 
 def get_user_service(session: Session = Depends(get_session), mapper: UserMapper = Depends(get_user_mapper)) -> UserService:
     """
@@ -84,6 +131,4 @@ def get_user_service(session: Session = Depends(get_session), mapper: UserMapper
     :return: UserService实例
     """
     service = UserService(session, mapper)
-    # 如果需要保存session到service实例中，可以通过以下方式实现
-    # setattr(service, 'session', session)
     return service

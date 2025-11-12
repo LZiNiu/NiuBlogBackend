@@ -67,6 +67,13 @@ class UpdateUserStatusRequest(BaseModel):
     """更新用户状态请求 DTO"""
     is_active: bool
 
+class AdminCreateUserRequest(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+    nickname: Optional[str] = None
+    role: str = "user"
+
 
 # ==================== VO 模型 ====================
 

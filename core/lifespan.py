@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from core.config import settings
+
 
 from model.redis import init_redis, close_redis
 from model.db import engine

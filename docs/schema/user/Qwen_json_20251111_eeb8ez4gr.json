@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "PagedResponse",
+  "description": "分页响应",
+  "properties": {
+    "total": {
+      "type": "integer",
+      "description": "总数",
+      "example": 100
+    },
+    "page": {
+      "type": "integer",
+      "description": "当前页",
+      "example": 1
+    },
+    "size": {
+      "type": "integer",
+      "description": "每页数量",
+      "example": 10
+    },
+    "items": {
+      "type": "array",
+      "description": "数据列表",
+      "items": {
+        "$ref": "#/definitions/UserInfoResponse"
+      }
+    }
+  },
+  "required": ["total", "page", "size", "items"]
+},
+"definitions": {
+  "UserInfoResponse": {
+    "$ref": "#/definitions/UserInfoResponse"
+  }
+}

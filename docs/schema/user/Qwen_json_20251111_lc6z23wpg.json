@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "LoginResponse",
+  "description": "登录响应",
+  "properties": {
+    "access_token": {
+      "type": "string",
+      "description": "访问令牌",
+      "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    },
+    "token_type": {
+      "type": "string",
+      "description": "令牌类型",
+      "example": "bearer"
+    },
+    "user_info": {
+      "$ref": "#/definitions/UserInfoResponse"
+    }
+  },
+  "required": ["access_token", "token_type", "user_info"]
+},
+"definitions": {
+  "UserInfoResponse": {
+    "$ref": "#/definitions/UserInfoResponse"
+  }
+}

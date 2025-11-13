@@ -44,11 +44,10 @@ async def welcome() -> dict:
 
 
 if __name__ == "__main__":
-    uvicorn_error_logger = logging.getLogger("uvicorn.error")
-    uvicorn_error_logger.disabled = True
     # uvicorn_default_logger = logging.getLogger("uvicorn")
     # uvicorn_default_logger.disabled = True
     uvicorn.run(app,host="127.0.0.1",port=8000)
+
     
     
 

@@ -1,9 +1,13 @@
 
 from typing import Optional, Generic, TypeVar
 from pydantic import BaseModel
-
+from sqlalchemy.orm import DeclarativeBase
 
 T = TypeVar('T')
+
+class Base(DeclarativeBase):
+    pass
+
 
 class Result(BaseModel, Generic[T]):
     """统一响应包装类"""

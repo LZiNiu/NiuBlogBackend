@@ -18,38 +18,38 @@ def _require_admin(payload: JwtPayload) -> tuple[int, bool]:
     return user_id, is_super
 
 @admin_router.get("", response_model=Result)
-def list_users(page: int = Query(1, ge=1), size: int = Query(10, ge=1, le=10), 
+async def list_users(page: int = Query(1, ge=1), size: int = Query(10, ge=1, le=10), 
             authorization: str = Header(...), 
             user_service: UserService = Depends(get_user_service)):
     payload = get_payload(authorization)
-    items, total = user_service.list_users(payload, page, size)
+    items, total = await user_service.list_users(payload, page, size)
     return Result.success({"total": total, "page": page, "size": size, "items": items})
 
 @admin_router.get("/{user_id}", response_model=Result)
-def get_user_by_id(user_id: int, authorization: str = Header(...), user_service: UserService = Depends(get_user_service)):
+async def get_user_by_id(user_id: int, authorization: str = Header(...), user_service: UserService = Depends(get_user_service)):
     payload = get_payload(authorization)
-    data = user_service.get_user_by_id(payload, user_id)
+    data = await user_service.get_user_by_id(payload, user_id)
     return Result.success(data)
 
 @admin_router.put("/{user_id}/status", response_model=Result)
-def update_status(user_id: int, req: UpdateUserStatusRequest, 
+async def update_status(user_id: int, req: UpdateUserStatusRequest, 
                         authorization: str = Header(...), 
                         user_service: UserService = Depends(get_user_service)):
     payload = get_payload(authorization)
     actor_id, _ = _require_admin(payload)
-    data = user_service.update_user_status(actor_id, user_id, req)
+    data = await user_service.update_user_status(actor_id, user_id, req)
     return Result.success(data)
 
 @admin_router.delete("/{user_id}", response_model=Result)
-def delete_user(user_id: int, authorization: str = Header(...), user_service: UserService = Depends(get_user_service)):
+async def delete_user(user_id: int, authorization: str = Header(...), user_service: UserService = Depends(get_user_service)):
     payload = get_payload(authorization)
     actor_id, _ = _require_admin(payload)
-    user_service.delete_user(actor_id, user_id)
+    await user_service.delete_user(actor_id, user_id)
     return Result.success()
 
 @admin_router.post("", response_model=Result)
-def create_user(req: AdminCreateUserRequest, authorization: str = Header(...), user_service: UserService = Depends(get_user_service)):
+async def create_user(req: AdminCreateUserRequest, authorization: str = Header(...), user_service: UserService = Depends(get_user_service)):
     payload = get_payload(authorization)
-    actor_id, _ = _require_admin(payload)
-    data = user_service.admin_create_user(actor_id, req)
+    _require_admin(payload)
+    data = await user_service.admin_create_user(payload, req)
     return Result.success(data)

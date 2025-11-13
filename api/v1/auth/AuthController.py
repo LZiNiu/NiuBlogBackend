@@ -10,12 +10,12 @@ auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @auth_router.post("/login", response_model=Result)
-def login(loginRequest: UserLoginRequest, user_service: UserService = Depends(get_user_service)):
-    resp = user_service.authenticate(loginRequest)
+async def login(loginRequest: UserLoginRequest, user_service: UserService = Depends(get_user_service)):
+    resp = await user_service.authenticate(loginRequest)
     return Result.success(resp)
 
 @auth_router.post("/logout", response_model=Result)
-def logout(authorization: str = Header(...), user_service: UserService = Depends(get_user_service)):
+async def logout(authorization: str = Header(...), user_service: UserService = Depends(get_user_service)):
     token = get_token(authorization)
-    user_service.logout(token)
+    await user_service.logout(token)
     return Result.success()

@@ -14,9 +14,19 @@ from model.redis import get_redis_client
 _REVOKED_JTIS: dict[str, int] = {}
 
 def _now_ts() -> int:
+    """返回当前UTC秒级时间戳。"""
     return int(time.time())
 
 def _exp_ts(expires_delta: Optional[timedelta], default_minutes: int) -> int:
+    """根据传入的`expires_delta`或默认分钟数计算过期时间戳。
+
+    Args:
+        expires_delta: 自定义过期时间差；为None时使用`default_minutes`。
+        default_minutes: 默认有效期（分钟）。
+
+    Returns:
+        过期的UTC秒级时间戳。
+    """
     if expires_delta:
         seconds = int(expires_delta.total_seconds())
     else:
@@ -24,10 +34,18 @@ def _exp_ts(expires_delta: Optional[timedelta], default_minutes: int) -> int:
     return _now_ts() + max(seconds, 0)
 
 def _revoke_key(jti: str) -> str:
+    """构造撤销标记在Redis中的键名。"""
     return f"{settings.JWT_REVOKE_PREFIX}{jti}"
 
 def _register_jti_revocation(jti: str, exp_ts: int) -> None:
-    # 优先使用全局 Redis 客户端；失败或未配置时回退到内存
+    """登记指定`jti`为撤销状态，直到其过期。
+
+    优先写入Redis（键为`JWT_REVOKE_PREFIX + jti`），失败或未配置时回退到进程内存。
+
+    Args:
+        jti: 令牌唯一ID。
+        exp_ts: 令牌过期的时间戳（秒）。
+    """
     ttl = max(exp_ts - _now_ts(), 0)
     client = get_redis_client()
     if client is not None:
@@ -36,14 +54,22 @@ def _register_jti_revocation(jti: str, exp_ts: int) -> None:
             return
         except Exception:
             pass
-    # 清理内存已过期项并记录
     expired = [k for k, v in _REVOKED_JTIS.items() if v <= _now_ts()]
     for k in expired:
         _REVOKED_JTIS.pop(k, None)
     _REVOKED_JTIS[jti] = exp_ts
 
 def is_token_revoked(jti: str) -> bool:
-    """检查 jti 是否在撤销列表中且尚未过期"""
+    """检查令牌是否已被撤销。
+
+    先尝试查询Redis；如不可用则查进程内回退字典。
+
+    Args:
+        jti: 令牌唯一ID。
+
+    Returns:
+        True表示已撤销且未过期；False表示未撤销或已过期。
+    """
     client = get_redis_client()
     if client is not None:
         try:
@@ -53,8 +79,16 @@ def is_token_revoked(jti: str) -> bool:
     exp_ts = _REVOKED_JTIS.get(jti)
     return exp_ts is not None and exp_ts > _now_ts()
 
-def create_access_token(to_encode: dict, expires_delta: Optional[timedelta] = None):
-    """创建访问令牌"""
+def create_access_token(to_encode: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """创建访问令牌（类型`access`）。
+
+    Args:
+        to_encode: 需要写入令牌载荷的业务字段（如`user_id`、`username`、`role`）。
+        expires_delta: 令牌有效期，缺省使用配置`ACCESS_TOKEN_EXPIRE_MINUTES`。
+
+    Returns:
+        编码后的JWT字符串。
+    """
     payload = dict(to_encode)
     payload.update({
         "type": "access",
@@ -66,8 +100,18 @@ def create_access_token(to_encode: dict, expires_delta: Optional[timedelta] = No
     encoded_jwt = jwt.encode(payload, key=settings.SECRET_KEY, algorithm=settings.ALGORITHM)  # type: ignore
     return encoded_jwt
 
-def create_refresh_token(to_encode: dict, expires_delta: Optional[timedelta] = None):
-    """创建刷新令牌（有效期可更长，默认同 access）"""
+def create_refresh_token(to_encode: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """创建刷新令牌（类型`refresh`）。
+
+    默认有效期为访问令牌的4倍，可通过`expires_delta`覆盖。
+
+    Args:
+        to_encode: 需要写入令牌载荷的业务字段。
+        expires_delta: 自定义有效期。
+
+    Returns:
+        编码后的JWT字符串。
+    """
     payload = dict(to_encode)
     # 默认刷新令牌有效期为访问令牌的 4 倍
     default_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 4
@@ -81,9 +125,16 @@ def create_refresh_token(to_encode: dict, expires_delta: Optional[timedelta] = N
     return encoded_jwt
 
 def decode_token(token: str, expected_type: Optional[str] = None) -> Optional[dict]:
-    """
-    解码并校验令牌基本有效性（签名+过期）；如指定 expected_type，则校验类型。
-    返回 payload（dict），失败时返回 None。
+    """解码并校验JWT令牌。
+
+    会校验签名、过期时间；如指定`expected_type`则校验`payload["type"]`。
+
+    Args:
+        token: 原始JWT字符串。
+        expected_type: 预期类型（如`"access"`或`"refresh"`）。
+
+    Returns:
+        令牌载荷dict；失败返回None。已过期或无效的令牌返回None。
     """
     try:
         payload: dict = jwt.decode(
@@ -111,8 +162,15 @@ def decode_token(token: str, expected_type: Optional[str] = None) -> Optional[di
 
 
 def validate_access_token(token: str) -> Optional[JwtPayload]:
-    """
-    验证访问令牌：类型、过期与未撤销；返回 payload，失败返回 None。
+    """验证访问令牌的有效性并返回结构化载荷。
+
+    包括签名校验、过期校验与撤销黑名单校验（Redis或内存）。
+
+    Args:
+        token: 原始JWT访问令牌。
+
+    Returns:
+        `JwtPayload`对象；失败返回None。
     """
     payload = decode_token(token)
     if not payload:
@@ -125,9 +183,13 @@ def validate_access_token(token: str) -> Optional[JwtPayload]:
     return JwtPayload(**payload)
 
 def revoke_token(token: str) -> bool:
-    """
-    撤销令牌（登出）：成功返回 True，失败返回 False。
-    将令牌的 jti 加入撤销列表，过期后自动清理。
+    """撤销令牌，将其加入黑名单直至过期。
+
+    Args:
+        token: 原始JWT令牌。
+
+    Returns:
+        True表示撤销成功；False表示令牌无效或格式错误。
     """
     payload = decode_token(token)
     if not payload:
@@ -141,30 +203,29 @@ def revoke_token(token: str) -> bool:
 
 
 def get_token(authorization: str) -> str:
-    """
-    从请求头的Authorization中获取token令牌
+    """从`Authorization`请求头中提取Bearer令牌。
 
     Args:
-        authorization (str): 
+        authorization: 请求头原始字符串，如`"Bearer <token>"`。
 
     Returns:
-        str: token令牌
+        去除前缀后的令牌字符串；如果不含前缀则原样返回去除空白后的内容。
     """
     if authorization.startswith("Bearer "):
         return authorization[len("Bearer "):].strip()
     return authorization.strip()
 
 def get_payload(authorization: str) -> JwtPayload:
-    """从请求头中获取token令牌并解析出其中携带的用户信息
+    """解析请求头中的Bearer令牌并返回标准化的JWT载荷。
 
     Args:
-        authorization (str): 请求头参数
+        authorization: `Authorization`请求头内容。
 
     Raises:
-        HTTPException: 令牌无效错误
+        HTTPException: 当令牌无效、过期或被撤销时抛出401。
 
     Returns:
-        JwtPayload: 用户信息
+        `JwtPayload`对象，包含`user_id`、`username`与`role`。
     """
     token = get_token(authorization)
     payload = validate_access_token(token)

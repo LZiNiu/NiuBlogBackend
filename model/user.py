@@ -2,29 +2,30 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr
-from sqlmodel import Field, SQLModel
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, Boolean, DateTime
 
+from .common import Base
 # ==================== 表模型 ====================
 
-class UserBase(SQLModel):
-    """用户基础信息"""
-    username: str = Field(unique=True, nullable=False, min_length=3, max_length=50)
-    email: EmailStr = Field(unique=True)
-    nickname: Optional[str] = Field(default=None, max_length=100)
-    avatar_url: Optional[str] = Field(default="./resource/avatar/default.jpg", max_length=255)
-    bio: Optional[str] = Field(default=None)
-    role: str = Field(default="user")
-    is_active: bool = Field(default=True)
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    nickname: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, default="./resource/avatar/default.jpg")
+    bio: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    role: Mapped[str] = mapped_column(String(50), nullable=False, default="user")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=datetime.utcnow)
 
 
-class User(UserBase, table=True):
-    """用户表模型"""
-    __tablename__ = "users"  # type: ignore
-    
-    id: Optional[int] = Field(default=None, primary_key=True)
-    password_hash: str = Field(nullable=False, max_length=255)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    def __repr__(self) -> str:
+        return f"<User id={getattr(self, 'id', None)} username={self.username}>"
 
 
 # ==================== DTO 模型 ====================

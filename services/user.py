@@ -1,5 +1,5 @@
 from fastapi import Depends
-from sqlmodel import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from handler.exception_handlers import AuthenticationException
 from dao.UserMapper import UserMapper, get_user_mapper
@@ -7,18 +7,26 @@ from services.base import BaseService
 from model.db import get_session
 from model.common import JwtPayload
 from model.user import User, UserRegisterDTO
-from model.user import UserLoginRequest, UserLoginResponse, UserInfoVO, AdminCreateUserRequest
+from model.user import (
+    UserLoginRequest, 
+    UserLoginResponse, 
+    UserInfoVO, 
+    AdminCreateUserRequest, 
+    UpdateUserInfoRequest,
+    ChangePasswordRequest,
+    UpdateUserStatusRequest,
+)
 from utils.cryptpwd import get_password_hash, verify_and_upgrade
 from utils.auth_utils import create_access_token
 from utils.auth_utils import revoke_token
 
 
 class UserService(BaseService):
-    def __init__(self, session: Session, mapper: UserMapper):
+    def __init__(self, session: AsyncSession, mapper: UserMapper):
         super().__init__(session)
         self.mapper = mapper
 
-    def register(self, userRegisterDTO: UserRegisterDTO):
+    async def register(self, userRegisterDTO: UserRegisterDTO):
         """
         注册
         :param userRegisterDTO:
@@ -27,16 +35,16 @@ class UserService(BaseService):
         # 构造user对象
         user = User(**userRegisterDTO.model_dump())
         user.password_hash = get_password_hash(userRegisterDTO.password)
-        self.mapper.create(self.session, user)
+        await self.mapper.create(self.session, user)
 
-    def authenticate(self, login_request: UserLoginRequest) -> UserLoginResponse:
+    async def authenticate(self, login_request: UserLoginRequest) -> UserLoginResponse:
         """
         用户认证：校验密码并在需要时自动升级哈希
         :param login_request: 用户登录请求（用户名+明文密码）
         :return: 登录响应（token + 用户信息）
         """
         # 查询用户
-        user = self.mapper.get_one(self.session, username=login_request.username)
+        user = await self.mapper.get_one(self.session, username=login_request.username)
         if not user or not user.is_active:
             self.logger.warning("认证失败：用户不存在或未激活 username=%s", login_request.username)
             raise AuthenticationException("用户名或密码错误")
@@ -49,7 +57,7 @@ class UserService(BaseService):
 
         if new_hash is not None:
             # 透明升级哈希，提升安全性
-            self.mapper.update(self.session, user.id, {"password_hash": new_hash})  # type: ignore
+            await self.mapper.update(self.session, user.id, {"password_hash": new_hash})  # type: ignore
             self.logger.info("已升级用户密码哈希 username=%s", login_request.username)
 
         # 生成访问令牌
@@ -66,7 +74,7 @@ class UserService(BaseService):
             user_info=user_info,
         )
 
-    def logout(self, token: str) -> None:
+    async def logout(self, token: str) -> None:
         """
         登出：撤销令牌（加入黑名单直到过期）
         """
@@ -76,7 +84,7 @@ class UserService(BaseService):
         else:
             self.logger.warning("用户登出失败，令牌无效或已过期")
 
-    def admin_create_user(self, payload: JwtPayload, req: AdminCreateUserRequest) -> int:
+    async def admin_create_user(self, payload: JwtPayload, req: AdminCreateUserRequest) -> int:
         """
         管理员创建用户
         :param actor_id: 执行操作的管理员ID
@@ -90,10 +98,10 @@ class UserService(BaseService):
         # 创建用户
         user = User(**req.model_dump())
         user.password_hash = get_password_hash(req.password)
-        self.mapper.create(self.session, user)
+        await self.mapper.create(self.session, user)
         return user.id
     
-    def list_users(self, payload: JwtPayload, page: int = 1, page_size: int = 10) -> tuple[list[UserInfoVO], int]:
+    async def list_users(self, payload: JwtPayload, page: int = 1, page_size: int = 10) -> tuple[list[UserInfoVO], int]:
         """
         管理员查询所有用户信息
         :param actor_id: 执行操作的管理员ID
@@ -104,11 +112,11 @@ class UserService(BaseService):
             raise AuthenticationException("您没有权限执行此操作")
 
         # 查询所有用户
-        users = self.mapper.list_users_info(self.session, page, page_size)
-        total = self.mapper.count(self.session, is_active=True)
+        users = await self.mapper.list_users_info(self.session, page, page_size)
+        total = await self.mapper.count(self.session, is_active=True)
         return users, total
 
-    def get_user_by_id(self, payload: JwtPayload, user_id: int) -> UserInfoVO:
+    async def get_user_by_id(self, payload: JwtPayload, user_id: int) -> UserInfoVO:
         """
         管理员查询指定用户信息
         :param actor_id: 执行操作的管理员ID
@@ -120,11 +128,45 @@ class UserService(BaseService):
             raise AuthenticationException("您没有权限执行此操作")
 
         # 查询用户
-        user = self.mapper.get_user_info_by_id(self.session, user_id=user_id)
-        return user
+        user = await self.mapper.get_user_info_by_id(self.session, user_id=user_id)
+        return user  # dict
+
+    async def get_user_info(self, user_id: int) -> UserInfoVO:
+        data = await self.mapper.get_user_info_by_id(self.session, user_id=user_id)
+        if not data:
+            raise AuthenticationException("用户不存在")
+        return UserInfoVO(**data)
+
+    async def update_user_info(self, user_id: int, req: UpdateUserInfoRequest) -> UserInfoVO:
+        update_dict = req.model_dump(exclude_unset=True)
+        obj = await self.mapper.update(self.session, user_id, update_dict)
+        if not obj:
+            raise AuthenticationException("用户不存在")
+        return UserInfoVO.model_validate(obj)
+
+    async def change_password(self, user_id: int, req: ChangePasswordRequest) -> None:
+        user = await self.mapper.get_by_id(self.session, user_id)
+        if not user:
+            raise AuthenticationException("用户不存在")
+        ok, _ = verify_and_upgrade(req.old_password, user.password_hash)
+        if not ok:
+            raise AuthenticationException("旧密码错误")
+        new_hash = get_password_hash(req.new_password)
+        await self.mapper.update(self.session, user_id, {"password_hash": new_hash})
+
+    async def update_user_status(self, actor_id: int, user_id: int, req: UpdateUserStatusRequest) -> UserInfoVO:
+        obj = await self.mapper.update(self.session, user_id, {"is_active": req.is_active})
+        if not obj:
+            raise AuthenticationException("用户不存在")
+        return UserInfoVO.model_validate(obj)
+
+    async def delete_user(self, actor_id: int, user_id: int) -> None:
+        ok = await self.mapper.delete(self.session, user_id)
+        if not ok:
+            raise AuthenticationException("用户不存在")
 
 
-def get_user_service(session: Session = Depends(get_session), mapper: UserMapper = Depends(get_user_mapper)) -> UserService:
+def get_user_service(session: AsyncSession = Depends(get_session), mapper: UserMapper = Depends(get_user_mapper)) -> UserService:
     """
     获取用户服务实例
     :param session: 数据库会话

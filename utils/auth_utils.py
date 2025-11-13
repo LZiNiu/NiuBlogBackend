@@ -1,6 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
+import logging
 from typing import Optional
-from fastapi import HTTPException
+from fastapi import HTTPException, Header, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
 
 from core.config import settings  # 假设配置文件在 core/config.py
@@ -202,33 +204,35 @@ def revoke_token(token: str) -> bool:
     return True
 
 
-def get_token(authorization: str) -> str:
-    """从`Authorization`请求头中提取Bearer令牌。
+_security = HTTPBearer()
+
+def get_payload(credentials: HTTPAuthorizationCredentials = Security(_security)) -> JwtPayload:
+    """获取token中的用户信息
 
     Args:
-        authorization: 请求头原始字符串，如`"Bearer <token>"`。
-
-    Returns:
-        去除前缀后的令牌字符串；如果不含前缀则原样返回去除空白后的内容。
-    """
-    if authorization.startswith("Bearer "):
-        return authorization[len("Bearer "):].strip()
-    return authorization.strip()
-
-def get_payload(authorization: str) -> JwtPayload:
-    """解析请求头中的Bearer令牌并返回标准化的JWT载荷。
-
-    Args:
-        authorization: `Authorization`请求头内容。
+        credentials (HTTPAuthorizationCredentials, optional): _description_. Defaults to Security(_security).
 
     Raises:
-        HTTPException: 当令牌无效、过期或被撤销时抛出401。
+        HTTPException: _description_
 
     Returns:
-        `JwtPayload`对象，包含`user_id`、`username`与`role`。
+        JwtPayload: _description_
     """
-    token = get_token(authorization)
+    payload = validate_access_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="invalid token")
+    return payload
+
+
+def require_admin(credentials: HTTPAuthorizationCredentials = Security(_security)) -> JwtPayload:
+    logging.info("进入拦截鉴权...")
+    token = credentials.credentials
     payload = validate_access_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="invalid token")
+    uid = int(payload.user_id) if isinstance(payload.user_id, str) else payload.user_id
+    
+    is_super = uid == settings.SUPER_ADMIN_USER_ID
+    if payload.role != "admin" or not is_super:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return payload

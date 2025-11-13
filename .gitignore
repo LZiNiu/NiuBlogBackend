@@ -1,5 +1,9 @@
-.idea
+.idea/
+.vscode/
 api/docs/
 .pytest_cache/
-**/__pycache__/
+
+__pycache__/
+*.pyc
+
 ./docs/

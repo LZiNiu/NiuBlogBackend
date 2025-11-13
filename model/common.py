@@ -1,5 +1,5 @@
+from typing import Generic, Optional, TypeVar
 
-from typing import Optional, Generic, TypeVar
 from pydantic import BaseModel
 from sqlalchemy.orm import DeclarativeBase
 

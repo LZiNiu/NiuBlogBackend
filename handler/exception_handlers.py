@@ -1,7 +1,7 @@
 from typing import Any
 
 from fastapi import FastAPI, Request, status
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
@@ -84,6 +84,19 @@ def register_exception_handlers(app: FastAPI):
             }
         )
     
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        """处理fastapi自带的HTTP异常"""
+        logger.error(f"HTTPException: {exc.detail}")
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "code": exc.status_code,
+                "message": exc.detail,
+                "data": None
+            }
+        )
+
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
         """处理未捕获的异常"""

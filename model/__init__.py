@@ -1,4 +1,2 @@
-from model.article import *
-from model.user import *
+from model.entity import *
 from model.common import *
-# from .tag import *

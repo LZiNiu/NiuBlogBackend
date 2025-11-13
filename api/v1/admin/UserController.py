@@ -1,55 +1,42 @@
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi import Header, Query
-from model import Result
-from model.common import JwtPayload
-from services import get_user_service, UserService
-from model.user import UpdateUserStatusRequest, AdminCreateUserRequest, UserLoginRequest
-from utils.auth_utils import get_payload
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+
 from core.config import settings
+from model.common import Result
+from model.dto.user import AdminCreateUserRequest
+from services import UserService, get_user_service
+from utils.auth_utils import require_admin
 
-admin_router = APIRouter(prefix="/admin/users", tags=["admin-users"])
-
-def _require_admin(payload: JwtPayload) -> tuple[int, bool]:
-    user_id = int(payload.user_id)  # type: ignore
-    role = payload.role
-    is_super = user_id == settings.SUPER_ADMIN_USER_ID
-    if role != "admin" and not is_super:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    return user_id, is_super
+# admin路由添加鉴权拦截
+admin_router = APIRouter(prefix="/admin/users", tags=["admin-users"], dependencies=[Depends(require_admin)])
 
 @admin_router.get("", response_model=Result)
-async def list_users(page: int = Query(1, ge=1), size: int = Query(10, ge=1, le=10), 
-            authorization: str = Header(...), 
+async def paginate_users_info(page: int = Query(1, ge=1), size: int = Query(10, ge=1, le=10), 
             user_service: UserService = Depends(get_user_service)):
-    payload = get_payload(authorization)
-    items, total = await user_service.list_users(payload, page, size)
+    # 管理员分页查询所有用户信息
+    items, total = await user_service.paginate_users_vo(page, size)
     return Result.success({"total": total, "page": page, "size": size, "items": items})
 
 @admin_router.get("/{user_id}", response_model=Result)
-async def get_user_by_id(user_id: int, authorization: str = Header(...), user_service: UserService = Depends(get_user_service)):
-    payload = get_payload(authorization)
-    data = await user_service.get_user_by_id(payload, user_id)
+async def get_user_by_id(user_id: int, user_service: UserService = Depends(get_user_service)):
+    data = await user_service.get_user_by_id(user_id)
     return Result.success(data)
 
 @admin_router.put("/{user_id}/status", response_model=Result)
-async def update_status(user_id: int, req: UpdateUserStatusRequest, 
-                        authorization: str = Header(...), 
+async def update_status(user_id: int, status: bool, 
                         user_service: UserService = Depends(get_user_service)):
-    payload = get_payload(authorization)
-    actor_id, _ = _require_admin(payload)
-    data = await user_service.update_user_status(actor_id, user_id, req)
+    data = await user_service.update_user_status(user_id, status)
     return Result.success(data)
 
 @admin_router.delete("/{user_id}", response_model=Result)
-async def delete_user(user_id: int, authorization: str = Header(...), user_service: UserService = Depends(get_user_service)):
-    payload = get_payload(authorization)
-    actor_id, _ = _require_admin(payload)
-    await user_service.delete_user(actor_id, user_id)
+async def delete_user(user_id: int, 
+                        user_service: UserService = Depends(get_user_service)):
+    # 不允许删除超级管理员
+    if user_id == settings.SUPER_ADMIN_USER_ID:
+        raise HTTPException(status_code=403, detail="无权删除超级管理员")
+    await user_service.delete_user(user_id)
     return Result.success()
 
 @admin_router.post("", response_model=Result)
-async def create_user(req: AdminCreateUserRequest, authorization: str = Header(...), user_service: UserService = Depends(get_user_service)):
-    payload = get_payload(authorization)
-    _require_admin(payload)
-    data = await user_service.admin_create_user(payload, req)
+async def create_user(req: AdminCreateUserRequest, user_service: UserService = Depends(get_user_service)):
+    data = await user_service.admin_create_user(req)
     return Result.success(data)

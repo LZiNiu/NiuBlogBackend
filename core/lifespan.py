@@ -1,9 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from core.config import settings
 import logging
 
-from model.redis import init_redis, close_redis
+from model.redis import RedisClientManager
 from model.db import engine
 
 @asynccontextmanager
@@ -12,9 +11,9 @@ async def lifespan(app: FastAPI):
     uvicorn_error_logger = logging.getLogger("uvicorn.error")
     uvicorn_error_logger.disabled = True
     # 应用启动：初始化 Redis 连接
-    init_redis()
+    await RedisClientManager.init()
     yield
     # 应用关闭：释放 Redis 连接
-    close_redis()
+    await RedisClientManager.close()
     if engine is not None:
-        engine.dispose()
+        await engine.dispose()

@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, Query
 
 from model import Result
 from services.comment import CommentService, get_comment_service
-from utils.auth_utils import require_admin
+from utils.auth_utils import JwtUtil
 from model.entity.models import Comment
 
 
-router = APIRouter(prefix="/admin/comments", tags=["admin-comments"])
+router = APIRouter(prefix="/admin/comments", tags=["admin-comments"], dependencies=[Depends(JwtUtil.require_admin)])
 
 
-@router.get("", dependencies=[Depends(require_admin)])
+@router.get("")
 async def list_comments(post_id: int | None = None, status: str | None = None, page: int = Query(1, ge=1), size: int = Query(10, ge=1, le=50), service: CommentService = Depends(get_comment_service)):
     if post_id is not None:
         items, total = await service.mapper.list_by_post(service.session, post_id, page, size)
@@ -22,7 +22,7 @@ async def list_comments(post_id: int | None = None, status: str | None = None, p
     return Result.success({"total": total, "page": page, "size": size, "items": [i.__dict__ for i in data]})
 
 
-@router.put("/{comment_id}/status", dependencies=[Depends(require_admin)])
+@router.put("/{comment_id}/status")
 async def update_comment_status(comment_id: int, status_value: str, service: CommentService = Depends(get_comment_service)):
     obj = await service.mapper.update(service.session, comment_id, {"status": status_value})
     if not obj:
@@ -30,7 +30,7 @@ async def update_comment_status(comment_id: int, status_value: str, service: Com
     return Result.success()
 
 
-@router.delete("/{comment_id}", dependencies=[Depends(require_admin)])
+@router.delete("/{comment_id}")
 async def delete_comment(comment_id: int, service: CommentService = Depends(get_comment_service)):
     ok = await service.mapper.delete(service.session, comment_id)
     if not ok:

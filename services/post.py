@@ -46,7 +46,7 @@ class PostService(BaseService):
         try:
             path = Path(row.content_file_path)
             if not path.is_absolute():
-                path = settings.BLOG_STORAGE_DIR / path
+                path = settings.app.BLOG_STORAGE_DIR / path
             if path.is_file():
                 async with aiofiles.open(str(path), "r", encoding="utf-8") as f:
                     row.body_text = await f.read()
@@ -61,8 +61,8 @@ class PostService(BaseService):
             summary=dto.summary,
             content_file_path=dto.content_file_path,
             status=dto.status or "draft",
-            author_id=settings.AUTHOR_ID,
-            author_name=settings.AUTHOR_NAME,
+            author_id=settings.app.AUTHOR_ID,
+            author_name=settings.app.AUTHOR_NAME,
         )
         await self.post_mapper.create(self.session, obj)
         await self.post_mapper.remove_categories(self.session, obj.id)
@@ -97,7 +97,7 @@ class PostService(BaseService):
         try:
             path = Path(data.content_file_path)
             if not path.is_absolute():
-                path = settings.BLOG_STORAGE_DIR / path
+                path = settings.app.BLOG_STORAGE_DIR / path
             if not path.is_file():
                 self.logger.info(f"文件不存在: {path}")
                 return None

@@ -12,8 +12,8 @@ from model.entity.models import User
 from model.common import JwtPayload
 from model.vo.user import UserInfoVO, UserVerify
 from services.base import BaseService
-from utils.auth_utils import create_access_token, revoke_token
-from utils.cryptpwd import get_password_hash, verify_and_upgrade
+from utils.auth_utils import JwtUtil
+from utils.cryptpwd import PasswordUtil
 
 
 class UserService(BaseService):
@@ -29,7 +29,7 @@ class UserService(BaseService):
         """
         # 构造user对象
         user = User(**userRegisterDTO.model_dump())
-        user.password_hash = get_password_hash(userRegisterDTO.password)
+        user.password_hash = PasswordUtil.get_password_hash(userRegisterDTO.password)
         await self.mapper.create(self.session, user)
 
     async def authenticate(self, login_request: UserLoginRequest) -> UserLoginResponse:
@@ -47,7 +47,7 @@ class UserService(BaseService):
             raise AuthenticationException("用户名或密码错误")
 
         # 验证密码并自动升级哈希
-        ok, new_hash = verify_and_upgrade(login_request.password, user.password_hash)
+        ok, new_hash = PasswordUtil.verify_and_upgrade(login_request.password, user.password_hash)
         if not ok:
             self.logger.warning("认证失败：密码错误 username=%s", login_request.username)
             raise AuthenticationException("用户名或密码错误")
@@ -57,25 +57,19 @@ class UserService(BaseService):
             await self.mapper.update(self.session, user.id, {"password_hash": new_hash})  # type: ignore
             self.logger.info("已升级用户密码哈希 username=%s", login_request.username)
 
-        # 生成访问令牌
         payload = JwtPayload(user_id=user.id, username=user.username, role=user.role)
-        access_token = create_access_token(payload)
-
-        # 组装用户信息
-        user_info = UserInfoVO.model_validate(user)
-
+        access, refresh = JwtUtil.issue_token_pair(payload)
         self.logger.info("用户登录成功 username=%s", login_request.username)
         return UserLoginResponse(
-            access_token=access_token,
-            token_type="bearer",
-            user_info=user_info,
+            token=access,
+            refreshToken=refresh
         )
 
-    async def logout(self, token: str) -> None:
+    def logout(self, token: str) -> None:
         """
         登出：撤销令牌（加入黑名单直到过期）
         """
-        ok = revoke_token(token)
+        ok = JwtUtil.revoke_token(token)
         if ok:
             self.logger.info("用户登出成功，令牌已撤销")
         else:
@@ -90,7 +84,7 @@ class UserService(BaseService):
         """
         # 创建用户
         user = User(**req.model_dump())
-        user.password_hash = get_password_hash(req.password)
+        user.password_hash = PasswordUtil.get_password_hash(req.password)
         await self.mapper.create(self.session, user)
         return user.id
     
@@ -132,11 +126,17 @@ class UserService(BaseService):
         user = await self.mapper.get_by_id(self.session, user_id)
         if not user:
             raise AuthenticationException("用户不存在")
-        ok, _ = verify_and_upgrade(req.old_password, user.password_hash)
+        ok, _ = PasswordUtil.verify_and_upgrade(req.old_password, user.password_hash)
         if not ok:
             raise AuthenticationException("旧密码错误")
-        new_hash = get_password_hash(req.new_password)
+        new_hash = PasswordUtil.get_password_hash(req.new_password)
         await self.mapper.update(self.session, user_id, {"password_hash": new_hash})
+
+    def refresh_tokens(self, refresh_token: str) -> UserLoginResponse:
+        access, refresh = JwtUtil.refresh_token_pair(refresh_token)
+        if not access or not refresh:
+            raise AuthenticationException("刷新令牌无效或已过期")
+        return UserLoginResponse(token=access, refreshToken=refresh)
 
     async def update_user_status(self, user_id: int, status: bool) -> UserInfoVO:
         obj = await self.mapper.update(self.session, user_id, {"is_active": status})

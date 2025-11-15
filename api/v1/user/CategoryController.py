@@ -4,7 +4,7 @@ from model import Result
 from services.category import CategoryService, get_category_service
 
 
-router = APIRouter(prefix="/categories", tags=["user-categories"])
+router = APIRouter(prefix="/categories", tags=["blog-categories"])
 
 
 @router.get("")

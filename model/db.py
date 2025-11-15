@@ -26,7 +26,7 @@ def _to_async_url(url: str) -> str:
 
 
 # 创建异步数据库引擎（惰性创建，避免导入时缺少驱动导致失败）
-ASYNC_DATABASE_URL = _to_async_url(settings.DATABASE_URL)
+ASYNC_DATABASE_URL = _to_async_url(settings.db.URL)
 engine: AsyncEngine | None = None
 SessionLocal: async_sessionmaker[AsyncSession] | None = None
 

@@ -6,7 +6,7 @@ from starlette.responses import FileResponse
 from services.post import PostService, get_post_service
 
 
-router = APIRouter(prefix="/articles", tags=["user-articles"])
+router = APIRouter(prefix="/articles", tags=["blog-articles"])
 
 
 @router.get("")

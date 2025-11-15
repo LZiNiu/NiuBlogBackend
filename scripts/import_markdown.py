@@ -40,7 +40,7 @@ async def _import_one(session: AsyncSession, service: PostService, path: Path) -
         title = path.stem
     summary = None
 
-    base = settings.BLOG_STORAGE_DIR.resolve()
+    base = settings.app.BLOG_STORAGE_DIR.resolve()
     try:
         rel = path.resolve().relative_to(base)
         rel_str = str(rel)
@@ -61,7 +61,7 @@ async def main() -> None:
     from model.db import SessionLocal
     async with SessionLocal() as session:
         service = PostService(session, get_post_mapper(), get_category_mapper(), get_tag_mapper())
-        base = settings.BLOG_STORAGE_DIR.resolve()
+        base = settings.app.BLOG_STORAGE_DIR.resolve()
         created: List[Tuple[int, str]] = []
         for p in base.rglob("*.md"):
             pid = await _import_one(session, service, p)

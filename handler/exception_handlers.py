@@ -6,40 +6,37 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from utils.logger import setup_logging
+from core.biz_constants import BizCode, BizMsg
 
 # 获取 FastAPI 日志记录器
 logger = setup_logging("exception_hanlder")
 
 class CattleBlogException(Exception):
-    """自定义异常基类"""
-    def __init__(self, message: str, status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR):
-        self.message = message
+    def __init__(self, msg: str, status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR, biz_code: int = BizCode.ERROR):
+        self.msg = msg
         self.status_code = status_code
-        super().__init__(self.message)
+        self.biz_code = biz_code
+        super().__init__(self.msg)
 
 
 class UserNotFoundException(CattleBlogException):
-    """用户未找到异常"""
-    def __init__(self, message: str = "用户未找到"):
-        super().__init__(message, status.HTTP_404_NOT_FOUND)
+    def __init__(self, msg: str = BizMsg.USER_NOT_FOUND):
+        super().__init__(msg, status.HTTP_404_NOT_FOUND, BizCode.USER_NOT_FOUND)
 
 
 class ArticleNotFoundException(CattleBlogException):
-    """文章未找到异常"""
-    def __init__(self, message: str = "文章未找到"):
-        super().__init__(message, status.HTTP_404_NOT_FOUND)
+    def __init__(self, msg: str = BizMsg.ARTICLE_NOT_FOUND):
+        super().__init__(msg, status.HTTP_404_NOT_FOUND, BizCode.ARTICLE_NOT_FOUND)
 
 
 class AuthenticationException(CattleBlogException):
-    """认证异常"""
-    def __init__(self, message: str = "认证失败"):
-        super().__init__(message, status.HTTP_401_UNAUTHORIZED)
+    def __init__(self, msg: str = BizMsg.TOKEN_INVALID, biz_code: int = BizCode.TOKEN_INVALID):
+        super().__init__(msg, status.HTTP_401_UNAUTHORIZED, biz_code=BizCode.VALIDATION_ERROR)
 
 
 class AuthorizationException(CattleBlogException):
-    """授权异常"""
-    def __init__(self, message: str = "权限不足"):
-        super().__init__(message, status.HTTP_403_FORBIDDEN)
+    def __init__(self, msg: str = BizMsg.FORBIDDEN):
+        super().__init__(msg, status.HTTP_403_FORBIDDEN, BizCode.FORBIDDEN)
 
 
 def register_exception_handlers(app: FastAPI):
@@ -47,26 +44,24 @@ def register_exception_handlers(app: FastAPI):
     
     @app.exception_handler(CattleBlogException)
     async def cattleblog_exception_handler(request: Request, exc: CattleBlogException):
-        """处理自定义异常"""
-        logger.error(f"CattleBlogException: {exc.message}")
+        logger.error(f"CattleBlogException: {exc.msg}")
         return JSONResponse(
             status_code=exc.status_code,
             content={
-                "code": exc.status_code,
-                "message": exc.message,
+                "code": exc.biz_code,
+                "msg": exc.msg,
                 "data": None
             }
         )
     
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
-        """处理请求验证异常"""
         logger.error(f"RequestValidationError: {exc.errors()}")
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content={
-                "code": status.HTTP_422_UNPROCESSABLE_ENTITY,
-                "message": "请求参数验证失败",
+                "code": BizCode.VALIDATION_ERROR,
+                "msg": BizMsg.VALIDATION_ERROR,
                 "data": {"details": exc.errors()}
             }
         )
@@ -79,20 +74,19 @@ def register_exception_handlers(app: FastAPI):
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content={
                 "code": status.HTTP_422_UNPROCESSABLE_ENTITY,
-                "message": "数据验证失败",
+                "msg": "数据验证失败",
                 "data": {exc.errors()}
             }
         )
     
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
-        """处理fastapi自带的HTTP异常"""
         logger.error(f"HTTPException: {exc.detail}")
         return JSONResponse(
             status_code=exc.status_code,
             content={
-                "code": exc.status_code,
-                "message": exc.detail,
+                "code": BizCode.ERROR,
+                "msg": str(exc.detail),
                 "data": None
             }
         )
@@ -105,7 +99,7 @@ def register_exception_handlers(app: FastAPI):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "code": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                "message": "服务器内部错误",
+                "msg": "服务器内部错误",
                 "data": None
             }
         )

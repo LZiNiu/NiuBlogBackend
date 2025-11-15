@@ -2,20 +2,20 @@ from fastapi import APIRouter, Depends
 
 from model import Result
 from services.category import CategoryService, get_category_service
-from utils.auth_utils import require_admin
+from utils.auth_utils import JwtUtil
 from model.entity.models import Category
 
 
-router = APIRouter(prefix="/admin/categories", tags=["admin-categories"])
+router = APIRouter(prefix="/admin/categories", tags=["admin-categories"], dependencies=[Depends(JwtUtil.require_admin)])
 
 
-@router.get("", dependencies=[Depends(require_admin)])
+@router.get("")
 async def list_categories(service: CategoryService = Depends(get_category_service)):
     items = await service.list_all()
     return Result.success(items)
 
 
-@router.post("", dependencies=[Depends(require_admin)])
+@router.post("")
 async def create_category(body: dict, service: CategoryService = Depends(get_category_service)):
     name = str(body.get("name") or "").strip()
     description = body.get("description")
@@ -24,13 +24,13 @@ async def create_category(body: dict, service: CategoryService = Depends(get_cat
     return Result.success({"id": created.id})
 
 
-@router.put("/{category_id}", dependencies=[Depends(require_admin)])
+@router.put("/{category_id}")
 async def update_category(category_id: int, body: dict, service: CategoryService = Depends(get_category_service)):
     await service.mapper.update(service.session, category_id, body)
     return Result.success()
 
 
-@router.delete("/{category_id}", dependencies=[Depends(require_admin)])
+@router.delete("/{category_id}")
 async def delete_category(category_id: int, service: CategoryService = Depends(get_category_service)):
     ok = await service.mapper.delete(service.session, category_id)
     if not ok:

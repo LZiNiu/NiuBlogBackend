@@ -1,6 +1,7 @@
 from typing import Generic, Optional, TypeVar
 
 from pydantic import BaseModel
+from core.biz_constants import BizCode, BizMsg
 from sqlalchemy.orm import DeclarativeBase
 
 T = TypeVar('T')
@@ -10,19 +11,16 @@ class Base(DeclarativeBase):
 
 
 class Result(BaseModel, Generic[T]):
-    """统一响应包装类"""
     code: int
     msg: str
     data: Optional[T] = None
 
     @classmethod
-    def success(cls, data: Optional[T] = None, msg: str = "success", code: int = 200) -> "Result[T]":
-        """成功响应"""
+    def success(cls, data: Optional[T] = None, msg: str = BizMsg.SUCCESS, code: int = BizCode.SUCCESS) -> "Result[T]":
         return cls(code=code, msg=msg, data=data)
 
     @classmethod
-    def failure(cls, msg: str = "error", code: int = 500, data: Optional[T] = None) -> "Result[T]":
-        """失败响应"""
+    def failure(cls, msg: str = BizMsg.ERROR, code: int = BizCode.ERROR, data: Optional[T] = None) -> "Result[T]":
         return cls(code=code, msg=msg, data=data)
 
 

@@ -1,31 +1,12 @@
 from datetime import datetime
 from typing import List, Optional
-
+from model.enums import CommentStatus, PostStatus, Role
 from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, Text, Enum
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from core.config import settings
 from model.common import Base
-
-# ==================== 枚举定义 ====================
-
-class PostStatus(str, Enum):
-    DRAFT = "draft"
-    PUBLISHED = "published"
-    ARCHIVED = "archived"
-
-
-class CommentStatus(str, Enum):
-    PROCESSING = "processing"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-
-class Role(str, Enum):
-    USER = "R_USER"
-    ADMIN = "R_ADMIN"
-    SUPER = "R_SUPER"
-
 
 # ==================== 表模型 ====================
 
@@ -74,9 +55,10 @@ class Post(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     cover_image_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    content_file_path: Mapped[str] = mapped_column(String(500), nullable=False, default=str(settings.BLOG_STORAGE_DIR.absolute()))
+    content_file_path: Mapped[str] = mapped_column(String(500), nullable=False,
+                                                   default=str(settings.app.BLOG_STORAGE_DIR.absolute()))
     author_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    author_name: Mapped[str] = mapped_column(String(15), nullable=False, default=settings.AUTHOR_NAME)
+    author_name: Mapped[str] = mapped_column(String(15), nullable=False, default=settings.app.AUTHOR_NAME)
     status: Mapped[PostStatus] = mapped_column(Enum(PostStatus), default=PostStatus.DRAFT, nullable=False)
     view_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     like_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

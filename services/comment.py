@@ -7,7 +7,6 @@ from dao.CommentMapper import CommentMapper
 from core.config import settings
 from model.db import get_session
 from model.dto.comment import CommentCreateDTO
-from utils.auth_utils import get_payload
 from model.common import JwtPayload
 from model.vo.comment import CommentVO
 from services.base import BaseService
@@ -28,7 +27,7 @@ class CommentService(BaseService):
 
     async def create_comment(self, post_id: int, dto: CommentCreateDTO, author_user_id: int) -> int:
         text = dto.content or ""
-        for w in settings.SENSITIVE_WORDS:
+        for w in settings.app.SENSITIVE_WORDS:
             if w and w.lower() in text.lower():
                 return 0
         data = dto.model_dump()

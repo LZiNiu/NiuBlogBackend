@@ -26,6 +26,9 @@ class UserLoginResponse(BaseModel):
     token: str # 访问令牌
     refreshToken: str # 刷新令牌
 
+class RefreshTokenRequest(BaseModel):
+    refreshToken: str
+
 
 class UpdateUserInfoRequest(BaseModel):
     """更新用户信息请求 DTO"""

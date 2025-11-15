@@ -14,7 +14,7 @@ class PostMapper(BaseMapper[Post]):
         super().__init__(Post)
 
     def _agg_names_expr(self, alias: str, col: str = "name") -> str:
-        url = settings.DATABASE_URL.lower()
+        url = settings.db.URL.lower()
         if url.startswith("postgres"):
             return f"STRING_AGG({alias}.{col}, ',')"
         if url.startswith("mysql"):
@@ -22,7 +22,7 @@ class PostMapper(BaseMapper[Post]):
         return f"GROUP_CONCAT({alias}.{col}, ',')"
 
     def _agg_ids_expr(self, alias: str, col: str = "id") -> str:
-        url = settings.DATABASE_URL.lower()
+        url = settings.db.URL.lower()
         if url.startswith("postgres"):
             return f"STRING_AGG(CAST({alias}.{col} AS TEXT), ',')"
         if url.startswith("mysql"):

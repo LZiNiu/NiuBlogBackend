@@ -1,11 +1,11 @@
 from datetime import datetime
-from enum import Enum
 from typing import List, Optional
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, Text, Enum
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
+from core.config import settings
 from model.common import Base
 
 # ==================== 枚举定义 ====================
@@ -17,10 +17,14 @@ class PostStatus(str, Enum):
 
 
 class CommentStatus(str, Enum):
-    PENDING = "pending"
+    PROCESSING = "processing"
     APPROVED = "approved"
-    SPAM = "spam"
     REJECTED = "rejected"
+
+class Role(str, Enum):
+    USER = "R_USER"
+    ADMIN = "R_ADMIN"
+    SUPER = "R_SUPER"
 
 
 # ==================== 表模型 ====================
@@ -34,7 +38,7 @@ class User(Base):
     nickname: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, default="./resource/avatar/default.jpg")
     bio: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
-    role: Mapped[str] = mapped_column(String(50), nullable=False, default="user")
+    role: Mapped[Role] = mapped_column(Enum(Role), nullable=False, default=Role.USER)
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=datetime.utcnow)
@@ -70,9 +74,10 @@ class Post(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     cover_image_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    content_file_path: Mapped[str] = mapped_column(String(500), nullable=False)
-    author_id: Mapped[int] = mapped_column(Integer, nullable=False)  # 逻辑外键
-    status: Mapped[PostStatus] = mapped_column(String(20), default=PostStatus.DRAFT, nullable=False)
+    content_file_path: Mapped[str] = mapped_column(String(500), nullable=False, default=str(settings.BLOG_STORAGE_DIR.absolute()))
+    author_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    author_name: Mapped[str] = mapped_column(String(15), nullable=False, default=settings.AUTHOR_NAME)
+    status: Mapped[PostStatus] = mapped_column(Enum(PostStatus), default=PostStatus.DRAFT, nullable=False)
     view_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     like_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True)
@@ -101,21 +106,12 @@ class Comment(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     post_id: Mapped[int] = mapped_column(Integer, nullable=False)  # 逻辑外键
-    author_user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 逻辑外键
-    author_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    author_email: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    author_user_id: Mapped[int] = mapped_column(Integer, nullable=False)  # 逻辑外键
     content: Mapped[str] = mapped_column(Text, nullable=False)
     parent_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 逻辑外键
-    status: Mapped[CommentStatus] = mapped_column(String(20), default=CommentStatus.PENDING, nullable=False)
+    status: Mapped[CommentStatus] = mapped_column(Enum(CommentStatus), default=CommentStatus.PROCESSING, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=func.now(), onupdate=func.now())
 
 
-class Like(Base):
-    __tablename__ = "likes"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    post_id: Mapped[int] = mapped_column(Integer, nullable=False)  # 逻辑外键
-    user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 逻辑外键
-    visitor_identifier: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=func.now())
+    

@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import HTTPException, Header, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import jwt
+from model.entity.models import Role
 
 from core.config import settings  # 假设配置文件在 core/config.py
 import uuid
@@ -81,7 +82,7 @@ def is_token_revoked(jti: str) -> bool:
     exp_ts = _REVOKED_JTIS.get(jti)
     return exp_ts is not None and exp_ts > _now_ts()
 
-def create_access_token(to_encode: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(to_encode: dict | JwtPayload, expires_delta: Optional[timedelta] = None) -> str:
     """创建访问令牌（类型`access`）。
 
     Args:
@@ -91,6 +92,8 @@ def create_access_token(to_encode: dict, expires_delta: Optional[timedelta] = No
     Returns:
         编码后的JWT字符串。
     """
+    if isinstance(to_encode, JwtPayload):
+        to_encode = to_encode.model_dump()
     payload = dict(to_encode)
     payload.update({
         "type": "access",
@@ -230,9 +233,7 @@ def require_admin(credentials: HTTPAuthorizationCredentials = Security(_security
     payload = validate_access_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="invalid token")
-    uid = int(payload.user_id) if isinstance(payload.user_id, str) else payload.user_id
     
-    is_super = uid == settings.SUPER_ADMIN_USER_ID
-    if payload.role != "admin" or not is_super:
+    if payload.role != Role.ADMIN.value or payload.role != Role.SUPER.value:
         raise HTTPException(status_code=403, detail="Forbidden")
     return payload

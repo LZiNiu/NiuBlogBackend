@@ -2,9 +2,9 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.v1.user.UserController import user_router
-from api.v1.admin.UserController import admin_router
 from api.v1.auth.AuthController import auth_router
+from api.v1.admin import admin_router
+from api.v1.user import users_router
 from handler.exception_handlers import register_exception_handlers
 from core.config import settings
 from core.lifespan import lifespan
@@ -15,7 +15,6 @@ app = FastAPI(lifespan=lifespan)
 # 注册全局异常处理器
 register_exception_handlers(app)
 
-    # 创建自定义的日志记录器
 # origins = [
 #     "http://localhost",
 #     "http://localhost:8080",
@@ -30,11 +29,10 @@ register_exception_handlers(app)
 #     allow_methods=["*"],
 #     allow_headers=["*"],
 # )
-# app.include_router(ArticleController.router, prefix="/api/v1")
-app.include_router(user_router, prefix="/api/v1")
-app.include_router(admin_router, prefix="/api/v1")
-app.include_router(auth_router, prefix="/api/v1")
 
+app.include_router(admin_router, prefix="/api/v1")
+app.include_router(users_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
 
 
 @app.get('/')

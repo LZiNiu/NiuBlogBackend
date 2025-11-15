@@ -3,6 +3,7 @@ from typing import Any, Generic, List, Optional, Type, TypeVar
 from pydantic import BaseModel
 from sqlalchemy import func, select, update, Column
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 
 from model.common import Base
 
@@ -57,11 +58,24 @@ class BaseMapper(Generic[EntityType]):
         result = await session.execute(statement)
         return result.scalars().first()
 
-    async def get_one(self, session: AsyncSession, **filters) -> Optional[EntityType]:
+    async def get_one(self, session: AsyncSession, 
+                            fields: List[Column] | None = None, **filters) -> Optional[EntityType]:
         """
         根据条件获取首条记录
+        
+        Args:
+            session: 数据库会话
+            fields: 要查询的字段列表, 如果为None则查询所有字段
+            **filters: 查询条件，键为字段名，值为字段值
+            
+        Returns:
+            查询到的对象, 如果未找到则返回None
         """
-        statement = select(self.entity_model)
+        if not fields:
+            statement = select(self.entity_model)
+        else:
+            statement = select(self.entity_model).options(load_only(*fields))  # type: ignore
+        
         for field, value in filters.items():
             if hasattr(self.entity_model, field):
                 statement = statement.where(getattr(self.entity_model, field) == value)
@@ -105,19 +119,10 @@ class BaseMapper(Generic[EntityType]):
         return list(result.scalars().all())
 
     async def update(self, session: AsyncSession, id: int, obj_update: dict) -> Optional[EntityType]:
-        """
-        更新记录
-        
-        Args:
-            session: 数据库会话
-            id: 要更新记录的ID
-            obj_update: 包含更新字段的字典
-            
-        Returns:
-            更新后的对象，如果未找到则返回None
-        """
-        
-        stmt = update()
+        statement = update(self.entity_model).where(self.entity_model.id == id).values(**obj_update)  # type: ignore
+        await session.execute(statement)
+        await session.commit()
+        db_obj = await self.get_by_id(session, id)
         return db_obj
 
     async def delete(self, session: AsyncSession, id: int) -> bool:
@@ -218,7 +223,7 @@ class BaseMapper(Generic[EntityType]):
 
         :param sqlalchemy_model: SQLAlchemy 模型类
         :param fields: Pydantic 模型或字段名字典
-        :return: SQLAlchemy 的 Select 语句
+        :return: SQLAlchemy 的 实体列 对象
         """
         if isinstance(fields, dict):
             field_names = list(fields)

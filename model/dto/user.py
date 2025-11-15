@@ -2,6 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr
 
+from model.entity.models import Role
 from model.vo.user import UserInfoVO
 
 # ==================== DTO 模型 ====================
@@ -22,9 +23,8 @@ class UserLoginRequest(BaseModel):
 
 class UserLoginResponse(BaseModel):
     """用户登录响应 DTO"""
-    access_token: str
-    token_type: str
-    user_info: "UserInfoVO"
+    token: str # 访问令牌
+    refreshToken: str # 刷新令牌
 
 
 class UpdateUserInfoRequest(BaseModel):
@@ -45,4 +45,4 @@ class AdminCreateUserRequest(BaseModel):
     email: EmailStr
     password: str
     nickname: Optional[str] = None
-    role: str = "user"
+    role: Role = Role.USER

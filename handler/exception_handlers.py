@@ -80,7 +80,7 @@ def register_exception_handlers(app: FastAPI):
             content={
                 "code": status.HTTP_422_UNPROCESSABLE_ENTITY,
                 "message": "数据验证失败",
-                "data": {"details": exc.errors()}
+                "data": {exc.errors()}
             }
         )
     

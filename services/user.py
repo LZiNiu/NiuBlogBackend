@@ -10,7 +10,7 @@ from model.dto.user import (AdminCreateUserRequest, ChangePasswordRequest,
                             UserRegisterDTO)
 from model.entity.models import User
 from model.common import JwtPayload
-from model.vo.user import UserInfoVO
+from model.vo.user import UserInfoVO, UserVerify
 from services.base import BaseService
 from utils.auth_utils import create_access_token, revoke_token
 from utils.cryptpwd import get_password_hash, verify_and_upgrade
@@ -38,8 +38,10 @@ class UserService(BaseService):
         :param login_request: 用户登录请求（用户名+明文密码）
         :return: 登录响应（token + 用户信息）
         """
-        # 查询用户
-        user = await self.mapper.get_one(self.session, username=login_request.username)
+        # 查询用户（仅加载密码哈希字段）
+        user = await self.mapper.get_one(self.session, 
+                                fields=self.mapper.select_fields(User, UserVerify), 
+                                username=login_request.username)
         if not user or not user.is_active:
             self.logger.warning("认证失败：用户不存在或未激活 username=%s", login_request.username)
             raise AuthenticationException("用户名或密码错误")
@@ -56,7 +58,7 @@ class UserService(BaseService):
             self.logger.info("已升级用户密码哈希 username=%s", login_request.username)
 
         # 生成访问令牌
-        payload = {"user_id": str(user.id), "username": user.username, "role": user.role}
+        payload = JwtPayload(user_id=user.id, username=user.username, role=user.role)
         access_token = create_access_token(payload)
 
         # 组装用户信息

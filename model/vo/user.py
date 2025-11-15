@@ -2,8 +2,16 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr
+from model.entity.models import Role
 
 # ==================== VO 模型 ====================
+class UserVerify(BaseModel):
+    """用户验证 VO"""
+    id: int
+    username: str
+    password_hash: str
+    role: Role
+    is_active: bool
 
 class UserInfoVO(BaseModel):
     """用户信息响应 VO"""
@@ -13,7 +21,7 @@ class UserInfoVO(BaseModel):
     nickname: Optional[str] = None
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
-    role: str
+    role: Role
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None

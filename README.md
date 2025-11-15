@@ -8,6 +8,8 @@
 
 仅超级管理员(我本人)和授权用户(role为admin)可登录后台管理端, 管理端的接口请求需要鉴权,部分接口内部需要进一步确定是否是超级管理员, 比如普通管理员登录管理端后不能删除其他管理员用户, 更不能删除超级管理员
 
+超级管理员的id可设置为环境变量在.env中
+
 #### 用户部分
 
 1. 用户注册(用户端)
@@ -68,44 +70,31 @@ size: 每页数量 (默认10)
 
 #### 文章部分
 
-由于是个人博客站, 所有文章作者或者关联的user_id都是我本人, 可默认赋值author_id或者user_id为代表我本人账号的id, 可考虑使用超级管理员账号的id作为默认值或者另外创建一个账号作为默认值.
+文章作者信息默认使用固定常量, 保留 `author_id` 以便后续拓展。
 
-1. 创建文章(管理端)
-路径: POST /api/v1/articles
-功能: 创建新文章
+1. 获取文章列表(用户端)
+路径: GET /api/v1/articles
+功能: 分页获取文章卡片列表, 不包含正文; 每条包含 `tag_names`（逗号分隔）与 `categories` 列表
+查询参数: page, size, category_id?, tag_id?
+
+2. 获取单个文章详情(用户端)
+路径: GET /api/v1/articles/{id}
+功能: 获取指定文章详情, 包含卡片信息、`tag_names` 与正文文件路径
+
+3. 创建文章(管理端)
+路径: POST /api/v1/admin/articles
+功能: 创建新文章并维护分类/标签关联
 请求头: Authorization: Bearer `<token>`
 
-2. 获取文章列表(管理端和用户端都可用)
-路径: GET /api/v1/articles/info
-功能: 分页获取文章列表(都是根据我的用户id查询), 查询的是文章基本信息不包含文章正文内容
-查询参数:
-page: 页码 (默认1)
-size: 每页数量 (默认10)
-
-3. 获取单个文章详情(管理端和用户端都可用)
-路径: GET /api/v1/articles/{id}
-功能: 获取指定文章详情, 查询的是文章全部的可对外展示的信息, 主要是基本信息和文章正文内容
-
 4. 更新文章(管理端)
-路径: PUT /api/v1/articles/{id}
-功能: 更新指定文章
+路径: PUT /api/v1/admin/articles/{id}
+功能: 更新指定文章及分类/标签关联
 请求头: Authorization: Bearer `<token>`
 
 5. 删除文章(管理端)
-路径: DELETE /api/v1/articles/{id}
+路径: DELETE /api/v1/admin/articles/{id}
 功能: 删除指定文章
 请求头: Authorization: Bearer `<token>`
-
-6. 根据分类获取文章列表(管理端和用户端都可用)
-路径: GET /api/v1/articles/category/{id}
-功能: 分页获取指定分类的文章列表(基于根据我的用户id查询之上)
-查询参数:
-page: 页码 (默认1)
-size: 每页数量 (默认10)
-
-7. 获取文章正文
-路径: GET /api/v1/articles/{id}/body
-功能: 获取指定文章的正文内容
 
 #### 分类部分
 
@@ -127,3 +116,40 @@ size: 每页数量 (默认10)
 路径: PUT /api/v1/categories/{id}
 功能: 更新指定分类
 请求头: Authorization: Bearer `<token>`
+
+#### 标签部分
+
+1. 获取标签列表(管理端和用户端都可用)
+路径: GET /api/v1/tags
+功能: 获取所有标签列表
+
+2. 标签管理(管理端)
+路径: POST/PUT/DELETE /api/v1/admin/tags
+功能: 创建/更新/删除标签
+请求头: Authorization: Bearer `<token>`
+
+#### 评论部分
+
+1. 获取文章评论(用户端)
+路径: GET /api/v1/articles/{id}/comments
+功能: 分页获取文章评论
+查询参数: page, size
+
+2. 发表评论(用户端)
+路径: POST /api/v1/articles/{id}/comments
+功能: 登录用户发表评论（需鉴权），匿名评论已移除
+
+3. 评论审核(管理端)
+路径: PUT /api/v1/admin/comments/{id}/status
+功能: 审核评论状态
+请求头: Authorization: Bearer `<token>`
+
+#### 点赞部分
+
+1. 获取点赞数(用户端)
+路径: GET /api/v1/articles/{id}/likes/count
+功能: 直接读取 `like_count`
+
+2. 点赞(用户端)
+路径: POST /api/v1/articles/{id}/likes
+功能: 为文章 `like_count` +1

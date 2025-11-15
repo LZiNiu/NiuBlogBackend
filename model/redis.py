@@ -1,76 +1,55 @@
-from typing import Optional, Generator
-from contextlib import contextmanager
-
+import redis.asyncio as redis
+from redis.asyncio.client import Redis
+from typing import Optional
 from core.config import settings
 
-import redis
+
+class RedisClientManager:
+    """
+    生产级 Redis 客户端管理器：
+    - 单例连接池
+    - 自动初始化/关闭
+    - 获取共享 Redis 客户端
+    """
+    _redis_client: Optional[Redis] = None
+
+    @classmethod
+    async def init(cls) -> None:
+        """初始化连接池（FastAPI startup 调用）"""
+        if cls._redis_client is None:
+            conn_pool = redis.ConnectionPool(
+                max_connections=settings.redis.POOL_SIZE,
+            )
+            cls._redis_client = redis.Redis(connection_pool=conn_pool,
+                    host=settings.redis.HOST,
+                    port=settings.redis.PORT,
+                    db=settings.redis.DB,
+                    password=settings.redis.PASSWORD,
+                    decode_responses=True,  # 自动解码 str
+                    socket_timeout=1,  # 1秒超时
+                    socket_connect_timeout=2,  # 2秒连接超时
+                )
+            # 测试连接
+            try:
+                await cls._redis_client.ping()
+            except redis.ConnectionError:
+                raise RuntimeError("Failed to connect to Redis server")
+
+    @classmethod
+    def get_client(cls) -> Redis:
+        """获取 Redis 实例（确保 init 后使用）"""
+        if cls._redis_client is None:
+            raise RuntimeError("Redis client not initialized")
+        return cls._redis_client
+
+    @classmethod
+    async def close(cls) -> None:
+        """关闭连接池（FastAPI shutdown 调用）"""
+        if cls._redis_client:
+            await cls._redis_client.close()
+            cls._redis_client = None
 
 
-_redis_client: Optional[redis.Redis] = None
-
-
-def init_redis() -> Optional[redis.Redis]:
-    """
-    在应用启动时初始化全局 Redis 客户端。
-    """
-    global _redis_client
-    if redis is None or not settings.REDIS_URL:
-        _redis_client = None
-        return None
-    if _redis_client is None:
-        client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)  # type: ignore
-        try:
-            client.ping()
-            _redis_client = client
-        except Exception:
-            _redis_client = None
-    return _redis_client
-
-def close_redis() -> None:
-    """
-    在应用关闭时释放 Redis 连接。
-    """
-    global _redis_client
-    try:
-        if _redis_client is not None:
-            _redis_client.close()
-            # 某些版本也可用: _redis_client.connection_pool.disconnect()
-    finally:
-        _redis_client = None
-
-def get_redis_client() -> Optional[redis.Redis]:
-    """
-    获取全局 Redis 客户端；未配置或连接失败返回 None。
-    """
-    global _redis_client
-    if _redis_client is None:
-        # 如果尚未初始化，尝试初始化一次（兼容未通过 lifespan 的场景，例如单元测试）
-        return init_redis()
-    return _redis_client
-
-
-@contextmanager
-def get_redis_conn():
-    """
-    提供 Redis 客户端的上下文管理器（可能为 None）。
-    使用方法:
-    with get_redis_conn() as r:
-        if r:
-            r.set("key", "value")
-    """
-    client = get_redis_client()
-    try:
-        yield client
-    finally:
-        pass
-
-
-def get_redis() -> Generator[Optional["redis.Redis"], None, None]:  # type: ignore
-    """
-    FastAPI 依赖注入用的 Redis 获取函数（可能为 None）。
-    """
-    client = get_redis_client()
-    try:
-        yield client
-    finally:
-        pass
+# 给 FastAPI 依赖注入使用
+async def get_redis() -> Redis:
+    return RedisClientManager.get_client()

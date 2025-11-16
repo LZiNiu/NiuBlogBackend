@@ -6,13 +6,12 @@ from starlette.responses import FileResponse
 from model.dto.post import PostCreateDTO, PostUpdateDTO
 from model.vo.post import PostDetailVO
 from services.post import PostService, get_post_service
-from utils.auth_utils import JwtUtil
 from utils.upload import save_blog
 from core.config import settings
 
 
 from utils.auth_utils import JwtUtil
-router = APIRouter(prefix="/admin/articles", tags=["admin-articles"], dependencies=[Depends(JwtUtil.require_admin)])
+router = APIRouter(prefix="/admin/articles", tags=["admin-articles"])
 
 
 @router.get("")

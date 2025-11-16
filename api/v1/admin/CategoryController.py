@@ -2,11 +2,10 @@ from fastapi import APIRouter, Depends
 
 from model import Result
 from services.category import CategoryService, get_category_service
-from utils.auth_utils import JwtUtil
 from model.entity.models import Category
 
 
-router = APIRouter(prefix="/admin/categories", tags=["admin-categories"], dependencies=[Depends(JwtUtil.require_admin)])
+router = APIRouter(prefix="/admin/categories", tags=["admin-categories"]) 
 
 
 @router.get("")

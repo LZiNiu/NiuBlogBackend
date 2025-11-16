@@ -6,10 +6,9 @@ from model.common import Result
 from model.dto.user import AdminCreateUserRequest
 from model.common import PagedVO
 from services import UserService, get_user_service
-from utils.auth_utils import JwtUtil
 
 # admin路由添加鉴权拦截
-router = APIRouter(prefix="/users", tags=["admin-users"], dependencies=[Depends(JwtUtil.require_admin)])
+router = APIRouter(prefix="/users", tags=["admin-users"])
 
 @router.get("", response_model=Result[PagedVO])
 async def paginate_users_info(current: int = Query(1, ge=1), size: int = Query(10, ge=1, le=10), 

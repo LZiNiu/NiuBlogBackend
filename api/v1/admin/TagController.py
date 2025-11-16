@@ -2,11 +2,10 @@ from fastapi import APIRouter, Depends
 
 from model import Result
 from services.tag import TagService, get_tag_service
-from utils.auth_utils import JwtUtil
 from model.entity.models import Tag
 
 
-router = APIRouter(prefix="/admin/tags", tags=["admin-tags"], dependencies=[Depends(JwtUtil.require_admin)])
+router = APIRouter(prefix="/admin/tags", tags=["admin-tags"]) 
 
 
 @router.get("")

@@ -1,12 +1,8 @@
 from datetime import timedelta
-
-from typing import Optional
-from fastapi import Security
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.datastructures import Headers
+from typing import Any, Optional
 import jwt
-from model.entity.models import Role
-from handler.exception_handlers import AuthenticationException, AuthorizationException
-from core.biz_constants import BizCode, BizMsg
+
 from core.config import settings
 import uuid
 import time
@@ -71,7 +67,6 @@ async def is_token_revoked(jti: str) -> bool:
     return exp_ts is not None and exp_ts > _now_ts()
 
 class JwtUtil:
-    security = HTTPBearer()
     logger = setup_logging(__name__)
 
     @staticmethod
@@ -168,7 +163,7 @@ class JwtUtil:
         return True
 
     @staticmethod
-    def issue_token_pair(to_encode: dict | JwtPayload) -> dict:
+    def issue_token_pair(to_encode: dict | JwtPayload) -> tuple[str, str]:
         access = JwtUtil.create_access_token(to_encode)
         refresh = JwtUtil.create_refresh_token(to_encode)
         return access, refresh
@@ -183,27 +178,25 @@ class JwtUtil:
         return JwtUtil.issue_token_pair(base)
 
     @staticmethod
-    async def get_payload(credentials: HTTPAuthorizationCredentials = Security(security)) -> JwtPayload:
-        token = credentials.credentials
+    async def get_payload(headers: Headers) -> JwtPayload | None:
+        # 获取请求头中的Authorization字段
+        auth = headers.get("Authorization")
+        if auth.startswith("Bearer "):
+            # 从Authorization字段中提取令牌
+            token = auth.split(" ", 1)[1].strip()
+        else:
+            # 非Bearer格式, 认为直接传递了令牌
+            token = auth
+
+        if not token:
+            return None
+        # 解码令牌
         payload, reason = JwtUtil.decode_with_reason(token, expected_type="access")
+        JwtUtil.logger.info(f"decode token {token} with reason {reason}")
         if not payload:
-            if reason == "expired":
-                raise AuthenticationException(BizMsg.TOKEN_EXPIRED, BizCode.TOKEN_EXPIRED)
-            raise AuthenticationException(BizMsg.TOKEN_INVALID, BizCode.TOKEN_INVALID)
+            return None
         jti = payload.get("jti")
         if isinstance(jti, str) and await is_token_revoked(jti):
-            raise AuthenticationException(BizMsg.TOKEN_REVOKED, BizCode.TOKEN_REVOKED)
+            return None
         return JwtPayload(**payload)
-
-    @staticmethod
-    async def require_admin(credentials: HTTPAuthorizationCredentials = Security(security)) -> JwtPayload:
-        JwtUtil.logger.info("进入拦截鉴权...")
-        start = time.perf_counter()
-        p =await JwtUtil.get_payload(credentials)
-        if p.role not in [Role.ADMIN.value, Role.SUPER.value]:
-            JwtUtil.logger.info(f"用户 {p.user_id} 角色 {p.role} 鉴权失败")
-            raise AuthorizationException(BizMsg.FORBIDDEN)
-        end = time.perf_counter()
-        JwtUtil.logger.info(f"用户 {p.user_id} 角色 {p.role} 鉴权成功, 耗时: {end - start:.6f} 秒")
-        return p
 

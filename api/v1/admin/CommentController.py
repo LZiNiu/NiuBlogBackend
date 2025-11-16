@@ -2,11 +2,10 @@ from fastapi import APIRouter, Depends, Query
 
 from model import Result
 from services.comment import CommentService, get_comment_service
-from utils.auth_utils import JwtUtil
 from model.entity.models import Comment
 
 
-router = APIRouter(prefix="/admin/comments", tags=["admin-comments"], dependencies=[Depends(JwtUtil.require_admin)])
+router = APIRouter(prefix="/admin/comments", tags=["admin-comments"]) 
 
 
 @router.get("")

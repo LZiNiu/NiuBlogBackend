@@ -6,10 +6,9 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import JSONResponse, Response
 
 from core.biz_constants import BizCode, BizMsg
-from model.common import Result, JwtPayload
-from model.entity.models import Role
+from model.common import Result
+from model.orm.models import Role
 from utils.auth_utils import JwtUtil
-from handler.exception_handlers import AuthenticationException
 from utils.user_context import UserContext, set_user_context, clear_user_context
 
 
@@ -36,13 +35,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
         ]
         # 仅在 POST 时需要登录的路径前缀（如发表评论）
         self.protected_post_prefixes = protected_post_prefixes or [
-            "/api/v1/articles",
+            "/api/v1/users/comment",
         ]
         # 明确公开路径（优先级最高）
         self.public_paths = public_paths or [
             "/api/v1/auth/login",
-            "/api/v1/auth/refresh",
-            "/api/v1/users"
+            "/api/v1/auth/refresh"
         ]
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -61,12 +59,26 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not require_admin and not require_user:
             return await call_next(request)
 
-
-        payload = await JwtUtil.get_payload(request.headers)
-        if not payload:
+        # 获取请求头中的Authorization字段
+        auth = request.headers.get("Authorization")
+        if not auth:
+            # 未提供令牌
             return JSONResponse(status_code=401, content=Result.failure(
                                         msg=BizMsg.TOKEN_REQUIRED, code=BizCode.TOKEN_REQUIRED).model_dump())
 
+        if auth.startswith("Bearer "):
+            # 从Authorization字段中提取令牌
+            token = auth.split(" ", 1)[1].strip()
+        else:
+            # 非Bearer格式, 认为直接传递了令牌
+            token = auth
+
+        payload = await JwtUtil.get_payload(token)
+        if not payload:
+            # 令牌无效
+            return JSONResponse(status_code=401, content=Result.failure(
+                                        msg=BizMsg.TOKEN_INVALID, code=BizCode.TOKEN_INVALID).model_dump())
+        JwtUtil.logger.info(f"成功解析令牌 当前用户:{payload.user_id}, 权限级别: {payload.role}")
         # 管理员校验
         if require_admin and payload.role not in [Role.ADMIN.value, Role.SUPER.value]:
             return JSONResponse(
@@ -78,7 +90,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         set_user_context(UserContext(
             user_id=payload.user_id,
             username=payload.username,
-            role=payload.role
+            role=payload.role,
+            token=token
         ))
         try:
             response = await call_next(request)

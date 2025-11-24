@@ -40,13 +40,11 @@ async def _register_jti_revocation(jti: str, exp_ts: int) -> None:
     if client is not None:
         try:
             await client.setex(_revoke_key(jti), ttl, "1")
-            return
-        except Exception:
-            pass
-    expired = [k for k, v in _REVOKED_JTIS.items() if v <= _now_ts()]
-    for k in expired:
-        _REVOKED_JTIS.pop(k, None)
-    _REVOKED_JTIS[jti] = exp_ts
+        except RuntimeError:
+            expired = [k for k, v in _REVOKED_JTIS.items() if v <= _now_ts()]
+            for k in expired:
+                _REVOKED_JTIS.pop(k, None)
+            _REVOKED_JTIS[jti] = exp_ts
 
 async def is_token_revoked(jti: str) -> bool:
     start = time.perf_counter()
@@ -55,16 +53,15 @@ async def is_token_revoked(jti: str) -> bool:
     JwtUtil.logger.info(f"获取 Redis 客户端耗时: {end - start:.6f} 秒")
     if client is not None:
         try:
-            start = time.perf_counter()
             revoked = bool(await client.exists(_revoke_key(jti)))
-            end = time.perf_counter()
-            JwtUtil.logger.info(f"检查令牌 {jti} 是否被撤销耗时: {end - start:.6f} 秒")
             return revoked
-        except Exception:
-            pass
-    JwtUtil.logger.info(f"redis获取失败")
-    exp_ts = _REVOKED_JTIS.get(jti)
-    return exp_ts is not None and exp_ts > _now_ts()
+        except RuntimeError:
+            JwtUtil.logger.error(f"redis操作失败")
+            exp_ts = _REVOKED_JTIS.get(jti)
+            return exp_ts is not None and exp_ts > _now_ts()
+
+    raise ConnectionError("redis连接失败")
+
 
 class JwtUtil:
     logger = setup_logging(__name__)
@@ -178,21 +175,11 @@ class JwtUtil:
         return JwtUtil.issue_token_pair(base)
 
     @staticmethod
-    async def get_payload(headers: Headers) -> JwtPayload | None:
-        # 获取请求头中的Authorization字段
-        auth = headers.get("Authorization")
-        if auth.startswith("Bearer "):
-            # 从Authorization字段中提取令牌
-            token = auth.split(" ", 1)[1].strip()
-        else:
-            # 非Bearer格式, 认为直接传递了令牌
-            token = auth
-
-        if not token:
-            return None
+    async def get_payload(token: str) -> JwtPayload | None:
         # 解码令牌
         payload, reason = JwtUtil.decode_with_reason(token, expected_type="access")
-        JwtUtil.logger.info(f"decode token {token} with reason {reason}")
+        if reason:
+            JwtUtil.logger.info(f"decode token {token} with reason {reason}")
         if not payload:
             return None
         jti = payload.get("jti")

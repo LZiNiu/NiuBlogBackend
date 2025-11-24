@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Optional
 from contextvars import ContextVar
 
-from model.entity.models import Role
+from model.orm.models import Role
 
 
 @dataclass
@@ -10,6 +10,7 @@ class UserContext:
     user_id: int | str
     username: str
     role: str
+    token: str
 
     @property
     def is_admin(self) -> bool:

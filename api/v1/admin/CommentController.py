@@ -2,10 +2,8 @@ from fastapi import APIRouter, Depends, Query
 
 from model import Result
 from services.comment import CommentService, get_comment_service
-from model.entity.models import Comment
 
-
-router = APIRouter(prefix="/admin/comments", tags=["admin-comments"]) 
+router = APIRouter(prefix="/admin/comments", tags=["admin-comments"])
 
 
 @router.get("")

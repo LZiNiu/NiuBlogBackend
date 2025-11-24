@@ -2,27 +2,34 @@ from fastapi import APIRouter, Depends, Query, status, UploadFile, File
 from pathlib import Path
 
 from model import Result
-from starlette.responses import FileResponse
 from model.dto.post import PostCreateDTO, PostUpdateDTO
-from model.vo.post import PostDetailVO
+from model.vo.post import PostEditVO, PostTableVO
+from model.common import PagedVO
 from services.post import PostService, get_post_service
 from utils.upload import save_blog
 from core.config import settings
 
-
-from utils.auth_utils import JwtUtil
-router = APIRouter(prefix="/admin/articles", tags=["admin-articles"])
+router = APIRouter(prefix="/articles", tags=["admin-articles"])
 
 
-@router.get("")
-async def list_articles(page: int = Query(1, ge=1), size: int = Query(10, ge=1, le=50), category_id: int | None = None, tag_id: int | None = None, service: PostService = Depends(get_post_service)):
-    items, total = await service.list_cards(page, size, category_id, tag_id)
-    return Result.success({"total": total, "page": page, "size": size, "items": items})
+# @router.get("", response_model=Result[PagedVO])
+# async def list_articles(page: int = Query(1, ge=1), size: int = Query(10, ge=1, le=50), category_id: int | None = None, tag_id: int | None = None, service: PostService = Depends(get_post_service)):
+#     pageVO = await service.list_cards(page, size, category_id, tag_id)
+#     return Result.success(pageVO)
+
+@router.get("", response_model=Result[PagedVO])
+async def paginated_table_post_vo(page: int = Query(1, ge=1), size: int = Query(8, ge=1, le=10), 
+                                            service: PostService = Depends(get_post_service)):
+    items, total = await service.paginated_table_post_vo(page, size)
+    if not items:
+        return Result.failure(message="文章不存在或内容缺失", code=status.HTTP_404_NOT_FOUND)
+    return Result.success(PagedVO(total=total, records=items, current=page, size=size))
 
 
-@router.get("/{post_id}", response_model=PostDetailVO)
-async def get_article_detail(post_id: int, service: PostService = Depends(get_post_service)):
-    data = await service.get_detail(post_id)
+
+@router.get("/{post_id}/editinfo", response_model=Result[PostEditVO])
+async def get_article_edit(post_id: int, service: PostService = Depends(get_post_service)):
+    data = await service.get_article_edit(post_id)
     if not data:
         return Result.failure(message="文章不存在", code=status.HTTP_404_NOT_FOUND)
     return Result.success(data)
@@ -56,15 +63,15 @@ async def update_article_status(post_id: int, status_value: str, service: PostSe
 
 @router.get("/{post_id}/body")
 async def get_article_body(post_id: int, service: PostService = Depends(get_post_service)):
-    body = await service.get_body_meta(post_id)
-    if not body:
+    body_text = await service.get_content(post_id)
+    if not body_text:
         return Result.failure(message="文章不存在或内容缺失", code=status.HTTP_404_NOT_FOUND)
-    return FileResponse(body["path"], media_type=body["mime"], filename=Path(body["path"]).name)
+    return Result.success(body_text)
 
 
 @router.get("/{post_id}/likes/count")
 async def like_count(post_id: int, service: PostService = Depends(get_post_service)):
-    detail = await service.get_detail(post_id)
+    detail = await service.get_article_complete(post_id)
     if not detail:
         return Result.failure(message="文章不存在", code=status.HTTP_404_NOT_FOUND)
     return Result.success({"count": detail.get("like_count", 0)})

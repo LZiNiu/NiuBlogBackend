@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr
-from model.entity.models import Role
+from model.orm.models import Role
 
 # ==================== VO 模型 ====================
 class UserVerify(BaseModel):
@@ -11,7 +11,7 @@ class UserVerify(BaseModel):
     username: str
     password_hash: str
     role: Role
-    is_active: bool
+    is_active: int
 
 class UserInfoVO(BaseModel):
     """用户信息响应 VO"""
@@ -22,9 +22,9 @@ class UserInfoVO(BaseModel):
     avatar_url: Optional[str] = None
     bio: Optional[str] = None
     role: Role
-    is_active: bool
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+    is_active: int
+    create_time: datetime
+    update_time: Optional[datetime] = None
 
     class Config:
         from_attributes = True  # 允许从 ORM 模型实例创建

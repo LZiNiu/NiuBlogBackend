@@ -3,7 +3,10 @@
 api/docs/
 .pytest_cache/
 
+resources/blogs/
+
 __pycache__/
+
 *.pyc
 .trae/
 

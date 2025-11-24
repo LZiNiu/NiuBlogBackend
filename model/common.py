@@ -30,8 +30,13 @@ class JwtPayload(BaseModel):
     username: str
     role: str
 
+class PageQuery(BaseModel):
+    """分页查询参数"""
+    current: int = 1
+    size: int = 5
+
 class PagedVO(BaseModel):
-    """分页响应 DTO（如需直接使用可保留），推荐使用 Result.page"""
+    """分页响应 vo"""
     total: int
     current: int
     size: int

@@ -3,7 +3,7 @@ from functools import lru_cache
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from model.entity.models import User
+from model.orm.models import User
 from model.vo.user import UserInfoVO
 
 from .BaseMapper import BaseMapper

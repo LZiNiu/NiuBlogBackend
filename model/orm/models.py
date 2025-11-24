@@ -4,7 +4,6 @@ from model.enums import CommentStatus, PostStatus, Role
 from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, Text, Enum
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
-
 from core.config import settings
 from model.common import Base
 
@@ -19,11 +18,12 @@ class User(Base):
     nickname: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, default="./resource/avatar/default.jpg")
     bio: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
-    role: Mapped[Role] = mapped_column(Enum(Role), nullable=False, default=Role.USER)
-    is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
+    role: Mapped[Role] = mapped_column(Enum(Role, values_callable=lambda t: [x.value for x in t]),
+                                       nullable=False, default=Role.USER)
+    status: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=datetime.utcnow)
+    create_time: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=datetime.utcnow)
+    update_time: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=datetime.utcnow)
 
     def __repr__(self) -> str:
         return f"<User id={getattr(self, 'id', None)} username={self.username}>"
@@ -59,7 +59,8 @@ class Post(Base):
                                                    default=str(settings.app.BLOG_STORAGE_DIR.absolute()))
     author_id: Mapped[int] = mapped_column(Integer, nullable=False)
     author_name: Mapped[str] = mapped_column(String(15), nullable=False, default=settings.app.AUTHOR_NAME)
-    status: Mapped[PostStatus] = mapped_column(Enum(PostStatus), default=PostStatus.DRAFT, nullable=False)
+    status: Mapped[PostStatus] = mapped_column(Enum(PostStatus, values_callable=lambda t: [x.value for x in t]),
+                                               default=PostStatus.DRAFT, nullable=False)
     view_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     like_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=False), nullable=True)
@@ -91,7 +92,7 @@ class Comment(Base):
     author_user_id: Mapped[int] = mapped_column(Integer, nullable=False)  # 逻辑外键
     content: Mapped[str] = mapped_column(Text, nullable=False)
     parent_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 逻辑外键
-    status: Mapped[CommentStatus] = mapped_column(Enum(CommentStatus), default=CommentStatus.PROCESSING, nullable=False)
+    status: Mapped[str] = mapped_column(Enum(CommentStatus), default=CommentStatus.PROCESSING, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=func.now(), onupdate=func.now())
 

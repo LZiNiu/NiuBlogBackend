@@ -2,21 +2,24 @@ from typing import Any, Generic, List, Optional, Type, TypeVar
 
 from pydantic import BaseModel
 from sqlalchemy import func, select, update, Column
+from sqlalchemy.engine.result import Result
+from sqlalchemy.engine.row import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
 
 from model.common import Base
 
 # 定义类型变量
-EntityType = TypeVar("EntityType", bound=Base)
+TableType = TypeVar("TableType", bound=Base)
+EntityType = TypeVar("EntityType", bound=BaseModel)
 
 
-class BaseMapper(Generic[EntityType]):
+class BaseMapper(Generic[TableType]):
     """
     基础Mapper类，提供通用的增删查改操作
     """
 
-    def __init__(self, entity_model: Type[EntityType]):
+    def __init__(self, entity_model: Type[TableType]):
         """
         初始化BaseMapper
         
@@ -25,7 +28,7 @@ class BaseMapper(Generic[EntityType]):
         """
         self.entity_model = entity_model
 
-    async def create(self, session: AsyncSession, obj: EntityType) -> EntityType:
+    async def create(self, session: AsyncSession, obj: TableType) -> EntityType:
         """
         创建新记录
         
@@ -120,10 +123,9 @@ class BaseMapper(Generic[EntityType]):
 
     async def update(self, session: AsyncSession, id: int, obj_update: dict) -> Optional[EntityType]:
         statement = update(self.entity_model).where(self.entity_model.id == id).values(**obj_update)  # type: ignore
-        await session.execute(statement)
+        result = await session.execute(statement)
         await session.commit()
-        db_obj = await self.get_by_id(session, id)
-        return db_obj
+        return result
 
     async def delete(self, session: AsyncSession, id: int) -> bool:
         """
@@ -170,7 +172,7 @@ class BaseMapper(Generic[EntityType]):
         session: AsyncSession,
         page: int = 1,
         page_size: int = 10,
-        fields: Optional[list] = None,
+        fields: set[str] | type[BaseModel] | None = None,
         order_by: Optional[List[str]] = None,
     ) -> tuple[list[dict], int]:
         """
@@ -191,8 +193,8 @@ class BaseMapper(Generic[EntityType]):
                 if hasattr(self.entity_model, field):
                     col: Column = getattr(self.entity_model, field)
                     stmt = stmt.order_by(col.desc() if ob.startswith("-") else col.asc())
-        result = await session.execute(stmt)
-        items = [row._asdict() for row in result.all()]
+        result: Result[Row] = await session.execute(stmt)
+        items = [dict(row) for row in result.mappings()]
         return items, total
 
     async def get_by_condition(self, session: AsyncSession, **kwargs) -> List[EntityType]:
@@ -217,7 +219,7 @@ class BaseMapper(Generic[EntityType]):
         return list(result.scalars().all())
 
     @staticmethod
-    def select_fields(sqlalchemy_model: type[Base], fields: type[BaseModel] | dict[str, Any]) -> list[Column]:
+    def select_fields(sqlalchemy_model: type[Base], fields: type[BaseModel] | set[str]) -> list[Column]:
         """
         根据 Pydantic 模型的字段定义，从 SQLModel 类中选择对应的列
 
@@ -225,11 +227,10 @@ class BaseMapper(Generic[EntityType]):
         :param fields: Pydantic 模型或字段名字典
         :return: SQLAlchemy 的 实体列 对象
         """
-        if isinstance(fields, dict):
-            field_names = list(fields)
+        if issubclass(fields, BaseModel):
+            field_names = set(fields.model_fields.keys())
         else:
-            field_names = list(fields.model_fields.keys())
-        
+            field_names = fields
         # 获取 SQLModel 的列
         # 根据字段名选择 SQLModel 的列
         selected_columns = []

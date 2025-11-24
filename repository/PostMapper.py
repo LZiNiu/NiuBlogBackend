@@ -1,11 +1,11 @@
 from typing import Iterable, List, Optional, Tuple
 
-from sqlalchemy import RowMapping, Select, delete, insert, select, text
+from sqlalchemy import RowMapping, delete, insert, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import settings
 
 from model.vo.post import PostDetailVO
-from model.entity.models import Category, Post, PostCategory, PostTag, Tag
+from model.orm.models import Category, Post, PostCategory, PostTag, Tag
 from dao.BaseMapper import BaseMapper
 
 

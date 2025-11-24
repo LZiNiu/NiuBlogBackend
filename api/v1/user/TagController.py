@@ -11,14 +11,3 @@ router = APIRouter(prefix="/tags", tags=["blog-tags"])
 async def list_tags(service: TagService = Depends(get_tag_service)):
     items = await service.list_all()
     return Result.success(items)
-
-# @router.post("")
-# async def create_tag(tag_name: str, service: TagService = Depends(get_tag_service)):
-#     await service.create_batch([tag_name])
-#     return Result.success()
-
-# @router.post("/batch")
-# async def create_tags(tag_names: list[str], service: TagService = Depends(get_tag_service)):
-#     await service.create_batch(tag_names)
-#     return Result.success()
-

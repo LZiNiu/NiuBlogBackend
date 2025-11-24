@@ -1,10 +1,8 @@
 from fastapi import APIRouter, Depends
 
 from model import Result
-from model.dto.user import UserLoginRequest, ChangePasswordRequest
-from model.vo.auth import RefreshTokenRequest
+from model.dto.user import UserLoginRequest, ChangePasswordRequest, RefreshTokenRequest
 from core.biz_constants import BizCode, BizMsg
-from model.vo.user import UserInfoVO
 from services import UserService, get_user_service
 
 from utils.user_context import get_user_context

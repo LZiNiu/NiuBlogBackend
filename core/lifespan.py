@@ -3,7 +3,7 @@ from fastapi import FastAPI
 import logging
 
 from model.redis import RedisClientManager
-from model.db import engine
+from model.db import close_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -15,5 +15,4 @@ async def lifespan(app: FastAPI):
     yield
     # 应用关闭：释放 Redis 连接
     await RedisClientManager.close()
-    if engine is not None:
-        await engine.dispose()
+    await close_db()

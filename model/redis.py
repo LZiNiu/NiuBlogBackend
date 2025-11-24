@@ -2,6 +2,9 @@ import redis.asyncio as redis
 from redis.asyncio.client import Redis
 from typing import Optional
 from core.config import settings
+from redis.retry import Retry
+from redis.backoff import ExponentialBackoff
+from redis.exceptions import (TimeoutError, ConnectionError)
 
 
 class RedisClientManager:
@@ -26,8 +29,9 @@ class RedisClientManager:
                     db=settings.redis.DB,
                     password=settings.redis.PASSWORD,
                     decode_responses=True,  # 自动解码 str
-                    socket_timeout=1,  # 1秒超时
-                    socket_connect_timeout=2,  # 2秒连接超时
+                    retry=Retry(ExponentialBackoff(cap=4, base=1), retries=4), # 重试策略: 4次，初始延迟1秒，最大延迟4秒
+                    retry_on_error=[TimeoutError, ConnectionError, ConnectionResetError],
+                    socket_timeout=1.5,  # 1秒socket连接+操作返回总时间超时
                 )
             # 测试连接
             try:

@@ -1,3 +1,4 @@
+from fileinput import close
 from typing import AsyncGenerator
 from urllib.parse import urlsplit, urlunsplit
 
@@ -44,3 +45,10 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
     assert SessionLocal is not None
     async with SessionLocal() as session:
         yield session
+
+
+async def close_db() -> None:
+    """关闭数据库连接"""
+    global engine
+    if engine is not None:
+        await engine.dispose()

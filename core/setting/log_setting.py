@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class LogSettings(BaseSettings):
     LEVEL: str = "INFO"
-    STACK_FRAMES: int = 6
+    STACK_FRAMES: int = 12
     DIR: str | Path |None = None
 
     model_config = SettingsConfigDict(

@@ -3,3 +3,4 @@ from .redis_setting import RedisSettings
 from .jwt_setting import JWTSettings
 from .log_setting import LogSettings
 from .app_setting import AppSettings
+from .qiniu_setting import QiniuSettings

@@ -4,6 +4,8 @@ from typing import Optional
 
 from colorama import init as colorama_init, Fore, Style
 
+from core.config import settings
+
 # 初始化 Windows 控制台颜色支持
 colorama_init(autoreset=True)
 
@@ -64,7 +66,7 @@ class ColorizedFormatter(logging.Formatter):
         return "".join(["Traceback (most recent call last):\n", *trimmed, colored_exc])
 
 
-def setup_logging(name: str = None, level: str = "INFO", max_frames: int = 6) -> logging.Logger:
+def setup_logging(name: str = None, level: str = "INFO", max_frames: int = settings.log.STACK_FRAMES) -> logging.Logger:
     """
     初始化根 logger，应用彩色格式器与浅堆栈。
     """

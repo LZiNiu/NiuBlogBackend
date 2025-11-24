@@ -1,13 +1,11 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
-from pathlib import Path
 
 from core.setting import (
     AppSettings,
     DatabaseSettings,
     JWTSettings,
     RedisSettings,
-    LogSettings
+    LogSettings,
+    QiniuSettings
 )
 
 
@@ -18,6 +16,7 @@ class Settings:
     redis: RedisSettings
     db: DatabaseSettings
     log: LogSettings
+    qiniu: QiniuSettings
 
     def __init__(self):
         self.app = AppSettings()
@@ -25,6 +24,7 @@ class Settings:
         self.redis = RedisSettings()
         self.db = DatabaseSettings()
         self.log = LogSettings()
+        self.qiniu = QiniuSettings()
         if self.log.DIR is None:
             self.log.DIR = self.app.PROJECT_DIR / "logs"
         else:

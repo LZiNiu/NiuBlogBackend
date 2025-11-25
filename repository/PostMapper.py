@@ -1,12 +1,13 @@
 from typing import Iterable, List, Optional, Tuple
 
-from sqlalchemy import RowMapping, delete, insert, select, text
+from sqlalchemy import RowMapping, delete, insert, select, text, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 from core.config import settings
 
-from model.vo.post import PostDetailVO
+from model.vo.post import PostInfoWithPath, UserendPostDetailVO, PostMeta, PostTableVO
 from model.orm.models import Category, Post, PostCategory, PostTag, Tag
-from dao.BaseMapper import BaseMapper
+from repository.BaseMapper import BaseMapper
 
 
 class PostMapper(BaseMapper[Post]):
@@ -51,7 +52,7 @@ class PostMapper(BaseMapper[Post]):
         tag_ids_agg = self._agg_ids_expr("t")
         tag_names_agg = self._agg_names_expr("t")
         sql = f"""
-        SELECT p.id, p.title, p.summary, p.author_name, p.created_at, p.updated_at, p.view_count, p.like_count,
+        SELECT p.id, p.title, p.summary, p.author_name, p.create_time, p.update_time, p.view_count, p.like_count,
                ({cat_ids_agg}) AS category_ids, ({cat_names_agg}) AS category_names,
                ({tag_ids_agg}) AS tag_ids, ({tag_names_agg}) AS tag_names
         FROM posts p
@@ -60,38 +61,90 @@ class PostMapper(BaseMapper[Post]):
         LEFT JOIN post_tags pt ON pt.post_id = p.id
         LEFT JOIN tags t ON t.id = pt.tag_id
         {where_sql}
-        GROUP BY p.id, p.title, p.summary, p.author_name, p.created_at, p.updated_at, p.view_count, p.like_count
-        ORDER BY p.published_at DESC, p.created_at DESC
+        GROUP BY p.id, p.title, p.summary, p.author_name, p.create_time, p.update_time, p.view_count, p.like_count
+        ORDER BY p.create_time DESC, p.update_time DESC
         LIMIT :limit OFFSET :offset
         """
         total_sql = f"SELECT COUNT(*) FROM posts p{where_sql}"
         total = int((await session.execute(text(total_sql), params)).scalar() or 0)
         rows = (await session.execute(text(sql), params)).mappings().all()
         return [dict(r) for r in rows], total
-
-    async def get_detail(self, session: AsyncSession, post_id: int) -> PostDetailVO | None:
-        cat_ids_agg = self._agg_ids_expr("c")
-        cat_names_agg = self._agg_names_expr("c")
-        tag_ids_agg = self._agg_ids_expr("t")
-        tag_names_agg = self._agg_names_expr("t")
-        sql = f"""
-        SELECT p.id, p.title, p.summary, p.author_name, p.created_at, p.updated_at, p.view_count, p.like_count,
-               p.status, p.published_at, p.content_file_path,
-               ({cat_ids_agg}) AS category_ids, ({cat_names_agg}) AS category_names,
-               ({tag_ids_agg}) AS tag_ids, ({tag_names_agg}) AS tag_names
-        FROM posts p
-        LEFT JOIN post_categories pc ON pc.post_id = p.id
-        LEFT JOIN categories c ON c.id = pc.category_id
-        LEFT JOIN post_tags pt ON pt.post_id = p.id
-        LEFT JOIN tags t ON t.id = pt.tag_id
-        WHERE p.id = :post_id
-        GROUP BY p.id, p.title, p.summary, p.author_name, p.created_at, p.updated_at, p.view_count, p.like_count,
-                 p.status, p.published_at, p.content_file_path
-        """
-        row: RowMapping = (await session.execute(text(sql), {"post_id": post_id})).mappings().one()
+    
+    async def get_content_path(self, session: AsyncSession, post_id: int) -> Optional[str]:
+        stmt = select(Post.content_file_path).where(Post.id == post_id)
+        row: RowMapping = (await session.execute(stmt)).mappings().one_or_none()
         if not row:
             return None
-        return PostDetailVO(**dict(row))
+        return row["content_file_path"]
+
+    async def get_post_info_with_path(self, session: AsyncSession, post_id: int) -> PostInfoWithPath | None:
+        stmt = (select(*self.select_fields(Post, PostInfoWithPath),
+                func.aggregate_strings(Tag.name.distinct(), ",").label("tag_names"),
+                func.aggregate_strings(Category.name.distinct(), ",").label("category_names"),
+                func.aggregate_strings(PostTag.tag_id.distinct(), ",").label("tag_ids"),
+                func.aggregate_strings(PostCategory.category_id.distinct(), ",").label("category_ids"),
+            )
+            .select_from(Post)
+            .join(PostCategory, PostCategory.post_id == Post.id, isouter=True)
+            .join(Category, Category.id == PostCategory.category_id, isouter=True)
+            .join(PostTag, PostTag.post_id == Post.id, isouter=True)
+            .join(Tag, Tag.id == PostTag.tag_id, isouter=True)
+            .where(Post.id == post_id)
+            .group_by(Post.id)
+            .order_by(Post.create_time.desc())
+        )
+        row: RowMapping = (await session.execute(stmt)).mappings().one()
+        if not row:
+            return None
+        return PostInfoWithPath(**dict(row))
+    
+    async def get_post_meta(self, session: AsyncSession, post_id: int) -> PostMeta | None:
+        stmt = (select(*self.select_fields(Post, PostMeta),
+            func.aggregate_strings(Tag.name, ",").label("tag_names"),
+            func.aggregate_strings(Category.name, ",").label("category_names"),
+            func.aggregate_strings(PostTag.tag_id, ",").label("tag_ids"),
+            func.aggregate_strings(PostCategory.category_id, ",").label("category_ids"),
+        )
+        .select_from(Post)
+        .join(PostCategory, PostCategory.post_id == Post.id, isouter=True)
+        .join(Category, Category.id == PostCategory.category_id, isouter=True)
+        .join(PostTag, PostTag.post_id == Post.id, isouter=True)
+        .join(Tag, Tag.id == PostTag.tag_id, isouter=True)
+        .where(Post.id == post_id)
+        .group_by(Post.id)
+        .order_by(Post.create_time.desc())
+        )
+        row: RowMapping = (await session.execute(stmt)).mappings().one_or_none()
+        if not row:
+            return None
+        return PostMeta(**dict(row))
+
+    async def paginated_table_post_vo(self, session: AsyncSession, current: int, size: int) -> list[PostTableVO] | None:
+        """获取文章表格展示信息VO, 包含分类、标签等关联信息, 不包含文章内容, """
+        # 获取 Post 表的所有列
+        colmuns = self.select_fields(Post, PostTableVO)
+        stmt = (select(*colmuns,
+            func.aggregate_strings(Tag.name.distinct(), ",").label("tag_names"),
+            func.aggregate_strings(Category.name.distinct(), ",").label("category_names"),
+            func.aggregate_strings(PostTag.tag_id.distinct(), ",").label("tag_ids"),
+            func.aggregate_strings(PostCategory.category_id.distinct(), ",").label("category_ids"),
+        )
+        .select_from(Post)
+        .join(PostCategory, PostCategory.post_id == Post.id, isouter=True)
+        .join(Category, Category.id == PostCategory.category_id, isouter=True)
+        .join(PostTag, PostTag.post_id == Post.id, isouter=True)
+        .join(Tag, Tag.id == PostTag.tag_id, isouter=True)
+        .group_by(Post.id)
+        .order_by(Post.create_time.desc())
+        .offset((current - 1) * size)
+        .limit(size)
+        )
+        total = int((await session.execute(select(func.count()).select_from(Post))).scalar() or 0)
+        # print("生成的sql: \n", stmt)
+        rows: list[RowMapping] = (await session.execute(stmt)).mappings().all()
+        if not rows:
+            return None
+        return [PostTableVO(**dict(r)) for r in rows], total
 
     async def get_categories(self, session: AsyncSession, post_id: int) -> List[Category]:
         stmt = select(Category).where(Category.id.in_(select(PostCategory.category_id).where(PostCategory.post_id == post_id)))
@@ -106,7 +159,7 @@ class PostMapper(BaseMapper[Post]):
     async def add_categories(self, session: AsyncSession, post_id: int, category_ids: Iterable[int]) -> None:
         """为文章新增分类关联：幂等插入，不负责删除。"""
         if category_ids:
-            await session.execute(insert(PostCategory), [{"post_id": post_id, "category_id": cid} for cid in category_ids])
+            await session.execute(insert(PostCategory).values([{"post_id": post_id, "category_id": cid} for cid in category_ids]))
             await session.commit()
 
     async def remove_categories(self, session: AsyncSession, post_id: int) -> None:
@@ -117,7 +170,7 @@ class PostMapper(BaseMapper[Post]):
     async def add_tags(self, session: AsyncSession, post_id: int, tag_ids: Iterable[int]) -> None:
         """为文章新增标签关联：幂等插入，不负责删除。"""
         if tag_ids:
-            await session.execute(insert(PostTag), [{"post_id": post_id, "tag_id": tid} for tid in tag_ids])
+            await session.execute(insert(PostTag).values([{"post_id": post_id, "tag_id": tid} for tid in tag_ids]))
             await session.commit()
 
     async def remove_tags(self, session: AsyncSession, post_id: int) -> None:

@@ -1,14 +1,15 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dao.UserMapper import UserMapper, get_user_mapper
+from repository.UserMapper import UserMapper, get_user_mapper
 from handler.exception_handlers import AuthenticationException
 from model.db import get_session
 from model.dto.user import (AdminCreateUserRequest, ChangePasswordRequest,
                             UpdateUserInfoRequest,
-                            UserLoginRequest, UserLoginResponse,
-                            UserRegisterDTO)
-from model.entity.models import User
+                            UserLoginRequest, UserRegisterDTO,
+                            UpdateUserStatus)
+from model.vo.auth import UserLoginResponse
+from model.orm.models import User
 from model.common import JwtPayload
 from model.vo.user import UserInfoVO, UserVerify
 from services.base import BaseService
@@ -83,7 +84,7 @@ class UserService(BaseService):
         :return: 创建的用户ID
         """
         # 创建用户
-        user = User(**req.model_dump())
+        user = User(**req.model_dump(exclude={"password"}))
         user.password_hash = PasswordUtil.get_password_hash(req.password)
         await self.mapper.create(self.session, user)
         return user.id
@@ -91,6 +92,8 @@ class UserService(BaseService):
     async def paginate_users_vo(self, page: int = 1, page_size: int = 10) -> tuple[list[UserInfoVO | dict], int]:
         """
         管理员分页查询所有用户信息
+        :param page:
+        :param page_size:
         :param actor_id: 执行操作的管理员ID
         :return: 用户信息列表
         """
@@ -115,12 +118,10 @@ class UserService(BaseService):
             raise AuthenticationException("用户不存在")
         return UserInfoVO(**data)
 
-    async def update_user_info(self, user_id: int, req: UpdateUserInfoRequest) -> UserInfoVO:
+    async def update_user_info(self, user_id: int, req: UpdateUserInfoRequest):
         update_dict = req.model_dump(exclude_unset=True)
-        obj = await self.mapper.update(self.session, user_id, update_dict)
-        if not obj:
-            raise AuthenticationException("用户不存在")
-        return UserInfoVO.model_validate(obj)
+        update_num = await self.mapper.update(self.session, user_id, update_dict)
+        return update_num
 
     async def change_password(self, user_id: int, req: ChangePasswordRequest) -> None:
         user = await self.mapper.get_by_id(self.session, user_id)
@@ -138,8 +139,8 @@ class UserService(BaseService):
             raise AuthenticationException("刷新令牌无效或已过期")
         return UserLoginResponse(token=access, refreshToken=refresh)
 
-    async def update_user_status(self, user_id: int, status: bool) -> UserInfoVO:
-        obj = await self.mapper.update(self.session, user_id, {"is_active": status})
+    async def update_user_status(self, user_id: int, status: UpdateUserStatus) -> UserInfoVO:
+        obj = await self.mapper.update(self.session, user_id, status.model_dump())
         if not obj:
             raise AuthenticationException("用户不存在")
         return UserInfoVO.model_validate(obj)
@@ -153,6 +154,7 @@ class UserService(BaseService):
 def get_user_service(session: AsyncSession = Depends(get_session), mapper: UserMapper = Depends(get_user_mapper)) -> UserService:
     """
     获取用户服务实例
+    :param mapper:
     :param session: 数据库会话
     :return: UserService实例
     """

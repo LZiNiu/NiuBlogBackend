@@ -12,5 +12,7 @@ class CategoryMapper(BaseMapper[Category]):
         super().__init__(Category)
 
     async def list_all(self, session: AsyncSession) -> List[Category]:
-        result = await session.execute(select(Category).order_by(Category.created_at.desc()))
-        return list(result.scalars().all())
+        result = await session.execute(
+                                select(*Category.__table__.columns)
+                                .order_by(Category.create_time.desc()))
+        return [dict(row) for row in result.mappings()]

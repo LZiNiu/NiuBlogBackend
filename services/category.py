@@ -3,7 +3,8 @@ from typing import List
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dao.CategoryMapper import CategoryMapper
+from model import PageQuery
+from repository.CategoryMapper import CategoryMapper
 from model.db import get_session
 from model.vo.category import CategoryVO
 from services.base import BaseService
@@ -21,6 +22,10 @@ class CategoryService(BaseService):
     async def list_all(self) -> List[CategoryVO | dict]:
         items = await self.mapper.list_all(self.session)
         return [CategoryVO.model_validate(i).model_dump() for i in items]
+
+    async def paginated_categories(self, current: int, size: int):
+        items, total = await self.mapper.paginate(self.session, current, size)
+        return items, total
 
 
 def get_category_service(session: AsyncSession = Depends(get_session), mapper: CategoryMapper = Depends(get_category_mapper)) -> CategoryService:

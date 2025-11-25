@@ -1,17 +1,17 @@
 from typing import Any, Generic, List, Optional, Type, TypeVar
 
 from pydantic import BaseModel
-from sqlalchemy import func, select, update, Column
+from sqlalchemy import CursorResult, func, select, update, Column, delete
 from sqlalchemy.engine.result import Result
 from sqlalchemy.engine.row import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
 
+
 from model.common import Base
 
 # 定义类型变量
 TableType = TypeVar("TableType", bound=Base)
-EntityType = TypeVar("EntityType", bound=BaseModel)
 
 
 class BaseMapper(Generic[TableType]):
@@ -28,7 +28,7 @@ class BaseMapper(Generic[TableType]):
         """
         self.entity_model = entity_model
 
-    async def create(self, session: AsyncSession, obj: TableType) -> EntityType:
+    async def create(self, session: AsyncSession, obj: TableType) -> TableType:
         """
         创建新记录
         
@@ -44,7 +44,7 @@ class BaseMapper(Generic[TableType]):
         await session.refresh(obj)
         return obj
 
-    async def get_by_id(self, session: AsyncSession, id: int) -> Optional[EntityType]:
+    async def get_by_id(self, session: AsyncSession, id: int) -> Optional[TableType]:
         """
         根据ID获取记录
         
@@ -62,7 +62,7 @@ class BaseMapper(Generic[TableType]):
         return result.scalars().first()
 
     async def get_one(self, session: AsyncSession, 
-                            fields: List[Column] | None = None, **filters) -> Optional[EntityType]:
+                            fields: List[Column] | None = None, **filters) -> Optional[TableType]:
         """
         根据条件获取首条记录
         
@@ -92,7 +92,7 @@ class BaseMapper(Generic[TableType]):
         order_by: Optional[List[str]] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
-    ) -> List[EntityType]:
+    ) -> List[TableType]:
         """
         获取记录列表，支持条件、排序与分页
         """
@@ -121,11 +121,11 @@ class BaseMapper(Generic[TableType]):
         result = await session.execute(statement)
         return list(result.scalars().all())
 
-    async def update(self, session: AsyncSession, id: int, obj_update: dict) -> Optional[EntityType]:
+    async def update(self, session: AsyncSession, id: int, obj_update: dict) -> int | None:
         statement = update(self.entity_model).where(self.entity_model.id == id).values(**obj_update)  # type: ignore
-        result = await session.execute(statement)
+        result: CursorResult = await session.execute(statement)
         await session.commit()
-        return result
+        return result.rowcount
 
     async def delete(self, session: AsyncSession, id: int) -> bool:
         """
@@ -144,6 +144,41 @@ class BaseMapper(Generic[TableType]):
             await session.commit()
             return True
         return False
+    
+    async def delete_by_ids(self, session: AsyncSession, ids: list[int]) -> bool:
+        """
+        根据ID列表批量删除记录
+        
+        Args:
+            session: 数据库会话
+            ids: 要删除记录的ID列表
+            
+        Returns:
+            删除成功返回True，否则返回False
+        """
+        statement = delete(self.entity_model).where(self.entity_model.id.in_(ids))  # type: ignore
+        result: CursorResult = await session.execute(statement)
+        await session.commit()
+        return result.rowcount > 0
+
+    async def delete_by_filters(self, session: AsyncSession, **filters) -> bool:
+        """
+        根据条件批量删除记录
+        
+        Args:
+            session: 数据库会话
+            **filters: 查询条件，键为字段名，值为字段值
+            
+        Returns:
+            删除成功返回True，否则返回False
+        """
+        statement = delete(self.entity_model)
+        for field, value in filters.items():
+            if hasattr(self.entity_model, field):
+                statement = statement.where(getattr(self.entity_model, field) == value)
+        result: CursorResult = await session.execute(statement)
+        await session.commit()
+        return result.rowcount > 0
 
     async def exists(self, session: AsyncSession, **filters) -> bool:
         """
@@ -181,7 +216,7 @@ class BaseMapper(Generic[TableType]):
         :param page: 页码
         :param page_size: 每页记录数
         :param fields: 要查询的字段，例如: ["id", "username", "email"]
-        :param order_by: 排序字段，例如: ["id", "-username"] 表示按ID升序，按用户名降序
+        :param order_by: 排序字段，例如: ["id", "-username"] 表示按ID升序, 按用户名降序
         :return: 分页数据列表和总记录数
         """
         total = await self.count(session)
@@ -197,7 +232,7 @@ class BaseMapper(Generic[TableType]):
         items = [dict(row) for row in result.mappings()]
         return items, total
 
-    async def get_by_condition(self, session: AsyncSession, **kwargs) -> List[EntityType]:
+    async def get_by_condition(self, session: AsyncSession, **kwargs) -> List[TableType]:
         """
         根据条件查询记录
         
@@ -224,19 +259,21 @@ class BaseMapper(Generic[TableType]):
         根据 Pydantic 模型的字段定义，从 SQLModel 类中选择对应的列
 
         :param sqlalchemy_model: SQLAlchemy 模型类
-        :param fields: Pydantic 模型或字段名字典
+        :param fields: Pydantic 模型或字段名字典(为空时默认返回所有列)
         :return: SQLAlchemy 的 实体列 对象
         """
-        if issubclass(fields, BaseModel):
+        if isinstance(fields, type) and issubclass(fields, BaseModel):
             field_names = set(fields.model_fields.keys())
         else:
             field_names = fields
         # 获取 SQLModel 的列
         # 根据字段名选择 SQLModel 的列
         selected_columns = []
+        if field_names is None:
+            # 如果没有指定字段，返回所有列
+            return sqlalchemy_model.__mapper__.columns.values()
+        table_columns = sqlalchemy_model.__mapper__.attrs.keys()
         for field_name in field_names:
-            col = getattr(sqlalchemy_model, field_name, None)
-            if col is None:
-                raise ValueError(f"Field '{field_name}' not found in model '{sqlalchemy_model.__name__}'")
-            selected_columns.append(col)
+            if field_name in table_columns:
+                selected_columns.append(getattr(sqlalchemy_model, field_name))
         return selected_columns

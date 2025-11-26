@@ -3,26 +3,27 @@ from pathlib import Path
 
 from model import Result
 from starlette.responses import FileResponse
+from model.common import PaginatedResponse
 from model.dto.post import PostCreateDTO, PostUpdateDTO
-from model.vo.post import PostDetailVO
+from model.vo.post import PostEditVO, PostTableVO
 from services.post import PostService, get_post_service
 from utils.upload import save_blog
 from core.config import settings
 
 
 from utils.auth_utils import JwtUtil
-router = APIRouter(prefix="/admin/articles", tags=["admin-articles"])
+router = APIRouter(prefix="/articles", tags=["admin-articles"])
 
 
-@router.get("")
-async def list_articles(page: int = Query(1, ge=1), size: int = Query(10, ge=1, le=50), category_id: int | None = None, tag_id: int | None = None, service: PostService = Depends(get_post_service)):
-    items, total = await service.list_cards(page, size, category_id, tag_id)
-    return Result.success({"total": total, "page": page, "size": size, "items": items})
+@router.get("/pagination", response_model=Result[PaginatedResponse[PostTableVO]])
+async def paginated_article_table_info(page: int = Query(1, ge=1), size: int = Query(10, ge=1, le=50), category_id: int | None = None, tag_id: int | None = None, service: PostService = Depends(get_post_service)):
+    items, total = await service.paginated_table_post_vo(page, size)
+    return Result.success(PaginatedResponse(records=items, total=total, current=page, size=size))
 
 
-@router.get("/{post_id}", response_model=PostDetailVO)
-async def get_article_detail(post_id: int, service: PostService = Depends(get_post_service)):
-    data = await service.get_detail(post_id)
+@router.get("/{post_id}/editinfo", response_model=Result[PostEditVO])
+async def get_article_edit_info(post_id: int, service: PostService = Depends(get_post_service)):
+    data = await service.get_article_edit(post_id)
     if not data:
         return Result.failure(message="文章不存在", code=status.HTTP_404_NOT_FOUND)
     return Result.success(data)
@@ -45,6 +46,11 @@ async def delete_article(post_id: int, service: PostService = Depends(get_post_s
     await service.delete_post(post_id)
     return Result.success()
 
+@router.delete("/batch")
+async def delete_articles(ids: list[int], service: PostService = Depends(get_post_service)):
+    count = await service.delete_posts(ids)
+    return Result.success({"count": count})
+
 
 @router.put("/{post_id}/status")
 async def update_article_status(post_id: int, status_value: str, service: PostService = Depends(get_post_service)):
@@ -56,35 +62,11 @@ async def update_article_status(post_id: int, status_value: str, service: PostSe
 
 @router.get("/{post_id}/body")
 async def get_article_body(post_id: int, service: PostService = Depends(get_post_service)):
-    body = await service.get_body_meta(post_id)
+    body = await service.get_content(post_id)
     if not body:
         return Result.failure(message="文章不存在或内容缺失", code=status.HTTP_404_NOT_FOUND)
     return FileResponse(body["path"], media_type=body["mime"], filename=Path(body["path"]).name)
 
-
-@router.get("/{post_id}/likes/count")
-async def like_count(post_id: int, service: PostService = Depends(get_post_service)):
-    detail = await service.get_detail(post_id)
-    if not detail:
-        return Result.failure(message="文章不存在", code=status.HTTP_404_NOT_FOUND)
-    return Result.success({"count": detail.get("like_count", 0)})
-
-
-@router.post("/{post_id}/likes")
-async def like(post_id: int, service: PostService = Depends(get_post_service)):
-    ok = await service.increment_like_count(post_id)
-    if not ok:
-        return Result.failure(message="点赞失败", code=status.HTTP_404_NOT_FOUND)
-    return Result.success()
-
-@router.get("/content/files")
-async def list_blog_files():
-    base = settings.app.BLOG_STORAGE_DIR.resolve()
-    items = []
-    for p in base.rglob("*.md"):
-        rel = p.relative_to(base)
-        items.append({"name": p.name, "path": str(rel)})
-    return Result.success(items)
 
 @router.post("/upload/blog")
 async def upload_blog(file: UploadFile = File(...)):
@@ -92,7 +74,3 @@ async def upload_blog(file: UploadFile = File(...)):
     _, rel = save_blog(content, file.filename or "post.md")
     return Result.success({"content_file_path": rel})
 
-@router.put("/{post_id}/content-path")
-async def update_content_path(post_id: int, dto: PostUpdateDTO, service: PostService = Depends(get_post_service)):
-    await service.update_post(post_id, PostUpdateDTO(content_file_path=dto.content_file_path))
-    return Result.success()

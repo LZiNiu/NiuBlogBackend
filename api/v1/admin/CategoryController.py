@@ -1,26 +1,32 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 
 from model import Result
+from model.common import PaginatedResponse
 from services.category import CategoryService, get_category_service
-from model.entity.models import Category
+from model.entity import Category
 
 
-router = APIRouter(prefix="/admin/categories", tags=["admin-categories"]) 
+router = APIRouter(prefix="/categories", tags=["admin-categories"]) 
 
 
 @router.get("")
 async def list_categories(service: CategoryService = Depends(get_category_service)):
     items = await service.list_all()
     return Result.success(items)
-
+    
+@router.get("/pagination", response_model=Result[PaginatedResponse[Category]])
+async def paginated_categories(page: int = 1, size: int = 10, service: CategoryService = Depends(get_category_service)):
+    items, total = await service.paginated_categories(page, size)
+    return Result.success(PaginatedResponse(records=items, total=total, current=page, size=size))
 
 @router.post("")
 async def create_category(body: dict, service: CategoryService = Depends(get_category_service)):
-    name = str(body.get("name") or "").strip()
-    description = body.get("description")
-    obj = Category(name=name, description=description)
-    created = await service.mapper.create(service.session, obj)
-    return Result.success({"id": created.id})
+    category = Category(**body)
+    category.update_time = datetime.now(timezone.utc)
+    category.create_time = datetime.now(timezone.utc)
+    category.id = await service.mapper.create(service.session, category)
+    return Result.success(category)
 
 
 @router.put("/{category_id}")

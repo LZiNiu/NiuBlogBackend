@@ -28,21 +28,28 @@ class BaseMapper(Generic[TableType]):
         """
         self.entity_model = entity_model
 
-    async def create(self, session: AsyncSession, obj: TableType) -> TableType:
+    async def create(self, session: AsyncSession, data: dict | BaseModel) -> int:
         """
         创建新记录
         
         Args:
             session: 数据库会话
-            obj: 要创建的对象
+            data: 对象数据
             
         Returns:
-            创建后的对象
+            创建后的对象id
         """
+        # 构造orm对象
+        if isinstance(data, BaseModel):
+            payload = data.model_dump(exclude_unset=True)
+        else:
+            payload = dict(data)
+        obj = self.entity_model(**payload)
         session.add(obj)
+        await session.flush()
+        obj_id = obj.id
         await session.commit()
-        await session.refresh(obj)
-        return obj
+        return obj_id
 
     async def get_by_id(self, session: AsyncSession, id: int) -> Optional[TableType]:
         """
@@ -145,7 +152,7 @@ class BaseMapper(Generic[TableType]):
             return True
         return False
     
-    async def delete_by_ids(self, session: AsyncSession, ids: list[int]) -> bool:
+    async def delete_batch(self, session: AsyncSession, ids: list[int], **filter) -> int:
         """
         根据ID列表批量删除记录
         
@@ -154,12 +161,16 @@ class BaseMapper(Generic[TableType]):
             ids: 要删除记录的ID列表
             
         Returns:
-            删除成功返回True，否则返回False
+            删除成功返回受影响的记录数, 否则返回0
         """
         statement = delete(self.entity_model).where(self.entity_model.id.in_(ids))  # type: ignore
+        if filter:
+            for field, value in filter.items():
+                if hasattr(self.entity_model, field):
+                    statement = statement.where(getattr(self.entity_model, field) == value)
         result: CursorResult = await session.execute(statement)
         await session.commit()
-        return result.rowcount > 0
+        return result.rowcount
 
     async def delete_by_filters(self, session: AsyncSession, **filters) -> bool:
         """

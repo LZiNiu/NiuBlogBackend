@@ -1,12 +1,12 @@
 from typing import List, Optional, Tuple
 from pathlib import Path
 import aiofiles
-import mimetypes
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
-from model.common import PagedVO
+from model.common import PaginatedResponse
 from repository.CategoryMapper import CategoryMapper
 from repository.PostMapper import PostMapper
 from repository.TagMapper import TagMapper
@@ -14,7 +14,7 @@ from model.enums import PostStatus
 from model.db import get_session
 from model.dto.post import PostCreateDTO, PostUpdateDTO
 from model.orm.models import Post
-from model.vo.post import PostCardVO, UserendPostDetailVO, PostBodyMeta, PostEditVO, PostMeta, PostTableVO
+from model.vo.post import U_PostDetailVO, PostEditVO, PostTableVO, U_PostInfo
 from services.base import BaseService
 
 
@@ -37,9 +37,9 @@ class PostService(BaseService):
         self.category_mapper = category_mapper
         self.tag_mapper = tag_mapper
 
-    async def list_cards(self, page: int, size: int, category_id: Optional[int] = None, tag_id: Optional[int] = None) -> PagedVO:
+    async def paginated_card_info(self, page: int, size: int, category_id: Optional[int] = None, tag_id: Optional[int] = None) -> PaginatedResponse:
         rows, total = await self.post_mapper.paginate_cards(self.session, page, size, category_id, tag_id)
-        return PagedVO(total=total, records=rows, current=page, size=size)
+        return PaginatedResponse(total=total, records=rows, current=page, size=size)
 
     async def paginated_table_post_vo(self, page: int, size: int) -> Tuple[list[PostTableVO], int] | None:
         row, total = await self.post_mapper.paginated_table_post_vo(self.session, page, size)
@@ -47,11 +47,11 @@ class PostService(BaseService):
             return None, 0
         return row, total
 
-    async def get_article_meta(self, post_id: int) -> PostMeta | None:
-        row = await self.post_mapper.get_post_meta(self.session, post_id)
+    async def get_u_post_info(self, post_id: int) -> U_PostInfo | None:
+        row = await self.post_mapper.get_u_post_info(self.session, post_id)
         if not row:
             return None
-        return PostMeta(**row.model_dump())
+        return U_PostInfo(**row.model_dump())
 
     async def get_article_edit(self, post_id: int)->PostEditVO:
         row = await self.post_mapper.get_post_info_with_path(self.session, post_id)
@@ -69,7 +69,7 @@ class PostService(BaseService):
             content = ""
         return PostEditVO(**row.model_dump(), content=content)
 
-    async def get_article_complete(self, post_id: int) -> UserendPostDetailVO | None:
+    async def get_article_complete(self, post_id: int) -> U_PostDetailVO | None:
         row = await self.post_mapper.get_post_info_with_path(self.session, post_id)
         if not row:
             return None
@@ -83,7 +83,7 @@ class PostService(BaseService):
         except Exception as e:
             self.logger.error(f"读取文章正文文件失败: {e}")
             content = ""
-        return UserendPostDetailVO(**row.model_dump(), content=content)
+        return U_PostDetailVO(**row.model_dump(), content=content)
 
     async def create_post(self, dto: PostCreateDTO) -> int:
         # 保存文章正文文件
@@ -141,6 +141,14 @@ class PostService(BaseService):
 
     async def delete_post(self, post_id: int) -> None:
         await self.post_mapper.delete(self.session, post_id)
+        await self.post_mapper.remove_categories(self.session, post_id)
+        await self.post_mapper.remove_tags(self.session, post_id)
+    
+    async def delete_posts(self, ids: list[int]) -> int:
+        count = await self.post_mapper.delete_batch(self.session, ids)
+        await self.post_mapper.remove_categories_batch(self.session, ids)
+        await self.post_mapper.remove_tags_batch(self.session, ids)
+        return count
 
     async def update_status(self, post_id: int, status_value: str) -> bool:
         await self.post_mapper.update(self.session, post_id, {"status": status_value})

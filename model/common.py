@@ -16,11 +16,11 @@ class Result(BaseModel, Generic[T]):
     data: Optional[T] = None
 
     @classmethod
-    def success(cls, data: Optional[T] = None, msg: str = BizMsg.SUCCESS, code: int = BizCode.SUCCESS) -> "Result[T]":
+    def success(cls, data: Optional[T] = None, msg: str = BizMsg.SUCCESS, code: int = 200) -> "Result[T]":
         return cls(code=code, msg=msg, data=data)
 
     @classmethod
-    def failure(cls, msg: str = BizMsg.ERROR, code: int = BizCode.ERROR, data: Optional[T] = None) -> "Result[T]":
+    def failure(cls, msg: str = BizMsg.ERROR, code: int = 200, data: Optional[T] = None) -> "Result[T]":
         return cls(code=code, msg=msg, data=data)
 
 
@@ -35,9 +35,9 @@ class PageQuery(BaseModel):
     current: int = 1
     size: int = 5
 
-class PagedVO(BaseModel):
+class PaginatedResponse(BaseModel, Generic[T]):
     """分页响应 vo"""
     total: int
     current: int
     size: int
-    records: list
+    records: list[T]

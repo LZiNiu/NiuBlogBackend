@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
 from core.config import settings
 
-from model.vo.post import PostInfoWithPath, UserendPostDetailVO, PostMeta, PostTableVO
+from model.vo.post import PostInfoWithPath, U_PostDetailVO, PostTableVO, U_PostInfo
 from model.orm.models import Category, Post, PostCategory, PostTag, Tag
 from repository.BaseMapper import BaseMapper
 
@@ -98,12 +98,14 @@ class PostMapper(BaseMapper[Post]):
             return None
         return PostInfoWithPath(**dict(row))
     
-    async def get_post_meta(self, session: AsyncSession, post_id: int) -> PostMeta | None:
-        stmt = (select(*self.select_fields(Post, PostMeta),
-            func.aggregate_strings(Tag.name, ",").label("tag_names"),
-            func.aggregate_strings(Category.name, ",").label("category_names"),
-            func.aggregate_strings(PostTag.tag_id, ",").label("tag_ids"),
-            func.aggregate_strings(PostCategory.category_id, ",").label("category_ids"),
+    async def get_u_post_info(self, session: AsyncSession, post_id: int) -> U_PostInfo | None:
+        """获取用户端文章详情页的文章基本信息
+        """
+        stmt = (select(*self.select_fields(Post, U_PostInfo),
+            func.aggregate_strings(Tag.name.distinct(), ",").label("tag_names"),
+            func.aggregate_strings(Category.name.distinct(), ",").label("category_names"),
+            func.aggregate_strings(PostTag.tag_id.distinct(), ",").label("tag_ids"),
+            func.aggregate_strings(PostCategory.category_id.distinct(), ",").label("category_ids"),
         )
         .select_from(Post)
         .join(PostCategory, PostCategory.post_id == Post.id, isouter=True)
@@ -117,7 +119,7 @@ class PostMapper(BaseMapper[Post]):
         row: RowMapping = (await session.execute(stmt)).mappings().one_or_none()
         if not row:
             return None
-        return PostMeta(**dict(row))
+        return U_PostInfo(**dict(row))
 
     async def paginated_table_post_vo(self, session: AsyncSession, current: int, size: int) -> list[PostTableVO] | None:
         """获取文章表格展示信息VO, 包含分类、标签等关联信息, 不包含文章内容, """
@@ -176,4 +178,14 @@ class PostMapper(BaseMapper[Post]):
     async def remove_tags(self, session: AsyncSession, post_id: int) -> None:
         """删除文章的所有标签关联。"""
         await session.execute(delete(PostTag).where(PostTag.post_id == post_id))
+        await session.commit()
+
+    async def remove_categories_batch(self, session: AsyncSession, post_ids: Iterable[int]) -> None:
+        """批量删除文章的所有分类关联。"""
+        await session.execute(delete(PostCategory).where(PostCategory.post_id.in_(post_ids)))
+        await session.commit()
+    
+    async def remove_tags_batch(self, session: AsyncSession, post_ids: Iterable[int]) -> None:
+        """批量删除文章的所有标签关联。"""
+        await session.execute(delete(PostTag).where(PostTag.post_id.in_(post_ids)))
         await session.commit()

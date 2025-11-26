@@ -78,23 +78,30 @@ class PostCardVO(PostSimpleBaseVO):
         from_attributes = True
 
 
-class PostMeta(PostSimpleBaseVO):
+class U_PostInfo(BaseModel):
+    """用户端文章详情页的文章基本信息
+    """
+    id: int
+    title: str
+    author_name: str
+    tag_names: str | None = None
+    category_names: str | None = None
     create_time: datetime | None
     update_time: datetime | None
     view_count: int | None
     like_count: int | None
-    tag_ids: str | None = None
+    category_ids: str | None = None
 
-    @field_serializer("tag_ids")
-    def serialize_tag_ids(self, tag_ids: str | None) -> List[int]:
-        if tag_ids is None:
+    @field_serializer("category_ids")
+    def serialize_category_ids(self, category_ids: str | None) -> List[int]:
+        if category_ids is None:
             return None
-        if tag_ids.find(',') == -1:
-            return [int(tag_ids)]
-        return [int(id) for id in tag_ids.split(",")]
+        if category_ids.find(',') == -1:
+            return [int(category_ids)]
+        return [int(id) for id in category_ids.split(",")]
     
 
-class UserendPostDetailVO(PostSimpleBaseVO):
+class U_PostDetailVO(PostSimpleBaseVO):
     """用户端前端文章全文阅读页展示所需信息
         包含基础信息和正文, 同样支持分类跳转需要category_ids
     """

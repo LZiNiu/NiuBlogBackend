@@ -20,20 +20,19 @@ register_exception_handlers(app)
 # 注册鉴权中间件
 app.add_middleware(AuthMiddleware)
 
-# origins = [
-#     "http://localhost",
-#     "http://localhost:8080",
-#     "https://localhost",
-#     "https://localhost:8080",
-# ]
-# 
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=origins,
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
+origins = [
+    "http://localhost",
+    "http://localhost:8080",
+    "https://localhost:3006",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")

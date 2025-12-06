@@ -9,7 +9,7 @@ from model.dto.user import (AdminCreateUserRequest, ChangePasswordRequest,
                             UserLoginRequest, UserRegisterDTO,
                             UpdateUserStatus)
 from model.vo.auth import UserLoginResponse
-from model.orm.models import User
+from model.entity import User
 from model.common import JwtPayload
 from model.vo.user import UserInfoVO, UserVerify
 from services.base import BaseService
@@ -31,7 +31,8 @@ class UserService(BaseService):
         # 构造user对象
         user = User(**userRegisterDTO.model_dump())
         user.password_hash = PasswordUtil.get_password_hash(userRegisterDTO.password)
-        await self.mapper.create(self.session, user)
+        user.id = await self.mapper.create(self.session, user)
+        return user.id
 
     async def authenticate(self, login_request: UserLoginRequest) -> UserLoginResponse:
         """
@@ -140,10 +141,8 @@ class UserService(BaseService):
         return UserLoginResponse(token=access, refreshToken=refresh)
 
     async def update_user_status(self, user_id: int, status: UpdateUserStatus) -> UserInfoVO:
-        obj = await self.mapper.update(self.session, user_id, status.model_dump())
-        if not obj:
-            raise AuthenticationException("用户不存在")
-        return UserInfoVO.model_validate(obj)
+        row_count = await self.mapper.update(self.session, user_id, status.model_dump())
+        return row_count
 
     async def delete_user(self, user_id: int) -> None:
         ok = await self.mapper.delete(self.session, user_id)

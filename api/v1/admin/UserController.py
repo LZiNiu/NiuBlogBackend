@@ -1,9 +1,8 @@
-import time
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile, status
-
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from handler.exception_handlers import AuthenticationException
 from core.config import settings
 from model.common import Result
-from model.dto.user import AdminCreateUserRequest
+from model.dto.user import AdminCreateUserRequest, UpdateUserStatus
 from model.common import PaginatedResponse
 from services import UserService, get_user_service
 from utils.upload import upload_image_to_qiniu
@@ -38,10 +37,12 @@ async def get_user_by_id(user_id: int, user_service: UserService = Depends(get_u
 
 
 @router.put("/{user_id}/status", response_model=Result)
-async def update_status(user_id: int, status: bool, 
+async def update_status(user_id: int, status: UpdateUserStatus, 
                         user_service: UserService = Depends(get_user_service)):
-    data = await user_service.update_user_status(user_id, status)
-    return Result.success(data)
+    row_count = await user_service.update_user_status(user_id, status)
+    if row_count == 0:
+        raise AuthenticationException("用户不存在")
+    return Result.success({'user_id': user_id})
 
 @router.delete("/{user_id}", response_model=Result)
 async def delete_user(user_id: int, 

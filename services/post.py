@@ -13,7 +13,7 @@ from repository.TagMapper import TagMapper
 from model.enums import PostStatus
 from model.db import get_session
 from model.dto.post import PostCreateDTO, PostUpdateDTO
-from model.orm.models import Post
+from model.entity import Post
 from model.vo.post import U_PostDetailVO, PostEditVO, PostTableVO, U_PostInfo
 from services.base import BaseService
 
@@ -49,9 +49,7 @@ class PostService(BaseService):
 
     async def get_u_post_info(self, post_id: int) -> U_PostInfo | None:
         row = await self.post_mapper.get_u_post_info(self.session, post_id)
-        if not row:
-            return None
-        return U_PostInfo(**row.model_dump())
+        return row
 
     async def get_article_edit(self, post_id: int)->PostEditVO:
         row = await self.post_mapper.get_post_info_with_path(self.session, post_id)
@@ -97,17 +95,17 @@ class PostService(BaseService):
         obj = Post(
             title=dto.title,
             summary=dto.summary,
-            content_file_path=content_file_path,
-            status=dto.post_status or PostStatus.DRAFT,
+            content_file_path=str(content_file_path),
+            post_status=dto.post_status or PostStatus.DRAFT,
             author_id=settings.app.AUTHOR_ID,
             author_name=settings.app.AUTHOR_NAME,
         )
-        await self.post_mapper.create(self.session, obj)
-        await self.post_mapper.remove_categories(self.session, obj.id)
-        await self.post_mapper.add_categories(self.session, obj.id, dto.category_ids)
-        await self.post_mapper.remove_tags(self.session, obj.id)
-        await self.post_mapper.add_tags(self.session, obj.id, dto.tag_ids)
-        return obj.id
+        obj_id = await self.post_mapper.create(self.session, obj)
+        await self.post_mapper.remove_categories(self.session, obj_id)
+        await self.post_mapper.add_categories(self.session, obj_id, dto.category_ids)
+        await self.post_mapper.remove_tags(self.session, obj_id)
+        await self.post_mapper.add_tags(self.session, obj_id, dto.tag_ids)
+        return obj_id
 
     async def update_post(self, post_id: int, dto: PostUpdateDTO) -> None:
         update_dict = dto.model_dump(exclude_unset=True)

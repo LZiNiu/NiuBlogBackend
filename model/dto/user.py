@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from model.orm.models import Role
 
@@ -29,7 +29,7 @@ class UpdateUserInfoRequest(BaseModel):
     bio: Optional[str] = None
 
 class UpdateUserStatus(BaseModel):
-    is_active: bool
+    is_active: bool = Field(alias="status", description="是否激活")
 
 class ChangePasswordRequest(BaseModel):
     """修改密码请求 DTO"""

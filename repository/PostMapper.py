@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
 from core.config import settings
 
-from model.vo.post import PostInfoWithPath, U_PostDetailVO, PostTableVO, U_PostInfo
+from model.vo.post import PostCardVO, PostInfoWithPath, U_PostDetailVO, PostTableVO, U_PostInfo
 from model.orm.models import Category, Post, PostCategory, PostTag, Tag
 from repository.BaseMapper import BaseMapper
 
@@ -14,60 +14,37 @@ class PostMapper(BaseMapper[Post]):
     def __init__(self):
         super().__init__(Post)
 
-    def _agg_names_expr(self, alias: str, col: str = "name") -> str:
-        url = settings.db.URL.lower()
-        if url.startswith("postgres"):
-            return f"STRING_AGG({alias}.{col}, ',')"
-        if url.startswith("mysql"):
-            return f"GROUP_CONCAT({alias}.{col} SEPARATOR ',')"
-        return f"GROUP_CONCAT({alias}.{col}, ',')"
-
-    def _agg_ids_expr(self, alias: str, col: str = "id") -> str:
-        url = settings.db.URL.lower()
-        if url.startswith("postgres"):
-            return f"STRING_AGG(CAST({alias}.{col} AS TEXT), ',')"
-        if url.startswith("mysql"):
-            return f"GROUP_CONCAT({alias}.{col} SEPARATOR ',')"
-        return f"GROUP_CONCAT({alias}.{col}, ',')"
-
     async def paginate_cards(
         self,
         session: AsyncSession,
-        page: int,
+        current: int,
         size: int,
         category_id: Optional[int] = None,
         tag_id: Optional[int] = None,
     ) -> Tuple[List[dict], int]:
-        where = []
-        params: dict = {"limit": size, "offset": (page - 1) * size}
+        
+        stmt = (select(*self.select_fields(Post, PostCardVO),
+                        func.aggregate_strings(Tag.name.distinct(), ",").label("tag_names"),
+                        func.aggregate_strings(Category.name.distinct(), ",").label("category_names"),
+                        func.aggregate_strings(PostTag.tag_id.distinct(), ",").label("tag_ids"),
+                        func.aggregate_strings(PostCategory.category_id.distinct(), ",").label("category_ids")
+                ).select_from(Post)
+                .join(PostCategory, PostCategory.post_id == Post.id, isouter=True)
+                .join(Category, Category.id == PostCategory.category_id, isouter=True)
+                .join(PostTag, PostTag.post_id == Post.id, isouter=True)
+                .join(Tag, Tag.id == PostTag.tag_id, isouter=True)
+                .group_by(Post.id)
+                .order_by(Post.create_time.desc())
+                .offset((current - 1) * size)
+                .limit(size)
+            )
         if category_id is not None:
-            where.append("p.id IN (SELECT post_id FROM post_categories WHERE category_id = :category_id)")
-            params["category_id"] = category_id
-        if tag_id is not None:
-            where.append("p.id IN (SELECT post_id FROM post_tags WHERE tag_id = :tag_id)")
-            params["tag_id"] = tag_id
-        where_sql = (" WHERE " + " AND ".join(where)) if where else ""
-        cat_ids_agg = self._agg_ids_expr("c")
-        cat_names_agg = self._agg_names_expr("c")
-        tag_ids_agg = self._agg_ids_expr("t")
-        tag_names_agg = self._agg_names_expr("t")
-        sql = f"""
-        SELECT p.id, p.title, p.summary, p.author_name, p.create_time, p.update_time, p.view_count, p.like_count,
-               ({cat_ids_agg}) AS category_ids, ({cat_names_agg}) AS category_names,
-               ({tag_ids_agg}) AS tag_ids, ({tag_names_agg}) AS tag_names
-        FROM posts p
-        LEFT JOIN post_categories pc ON pc.post_id = p.id
-        LEFT JOIN categories c ON c.id = pc.category_id
-        LEFT JOIN post_tags pt ON pt.post_id = p.id
-        LEFT JOIN tags t ON t.id = pt.tag_id
-        {where_sql}
-        GROUP BY p.id, p.title, p.summary, p.author_name, p.create_time, p.update_time, p.view_count, p.like_count
-        ORDER BY p.create_time DESC, p.update_time DESC
-        LIMIT :limit OFFSET :offset
-        """
-        total_sql = f"SELECT COUNT(*) FROM posts p{where_sql}"
-        total = int((await session.execute(text(total_sql), params)).scalar() or 0)
-        rows = (await session.execute(text(sql), params)).mappings().all()
+            stmt = stmt.where(Category.id == category_id)
+            total_stmt = select(func.count(PostCategory.post_id)).select_from(PostCategory).where(PostCategory.category_id == category_id)
+        else:
+            total_stmt = select(func.count()).select_from(Post)
+        total = int((await session.execute(total_stmt)).scalar() or 0)
+        rows = (await session.execute(stmt)).mappings().all()
         return [dict(r) for r in rows], total
     
     async def get_content_path(self, session: AsyncSession, post_id: int) -> Optional[str]:

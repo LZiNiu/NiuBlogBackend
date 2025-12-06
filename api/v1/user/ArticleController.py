@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Depends, Query, status
-from pathlib import Path
 
 from model import Result
-from starlette.responses import FileResponse
 from model.common import PaginatedResponse
 from model.vo.post import PostCardVO, U_PostInfo
 from services.post import PostService, get_post_service
@@ -12,7 +10,9 @@ router = APIRouter(prefix="/articles", tags=["blog-articles"])
 
 
 @router.get("/pagination", response_model=Result[PaginatedResponse[PostCardVO]])
-async def paginated_article_cards(page: int = Query(1, ge=1), size: int = Query(10, ge=1, le=50), category_id: int | None = None, tag_id: int | None = None, service: PostService = Depends(get_post_service)):
+async def paginated_article_cards(page: int = Query(1, ge=1), size: int = Query(10, ge=1, le=50), 
+                                    category_id: int | None = None, tag_id: int | None = None, 
+                                    service: PostService = Depends(get_post_service)):
     pagevo = await service.paginated_card_info(page, size, category_id, tag_id)
     return Result.success(pagevo)
 
@@ -31,6 +31,12 @@ async def get_article_info_by_id(post_id: int, service: PostService = Depends(ge
         return Result.failure(message="文章不存在", code=status.HTTP_404_NOT_FOUND)
     return Result.success(data)
 
+
+@router.get("/category/{category_id}", response_model=Result[PaginatedResponse[PostCardVO]])
+async def list_articles_by_category(category_id: int, page: int = Query(1, ge=1), size: int = Query(10, ge=1, le=15), 
+                                    service: PostService = Depends(get_post_service)):
+    items = await service.paginated_card_info(page, size, category_id=category_id)
+    return Result.success(items)
 
 @router.post("/{post_id}/likes")
 async def like(post_id: int, service: PostService = Depends(get_post_service)):

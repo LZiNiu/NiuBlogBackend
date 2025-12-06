@@ -8,3 +8,12 @@ class CategoryVO(BaseModel):
 
     class Config:
         from_attributes = True
+
+class CategoryCardVO(BaseModel):
+    id: int
+    name: str
+    description: str | None = None
+    article_count: int
+
+    class Config:
+        from_attributes = True

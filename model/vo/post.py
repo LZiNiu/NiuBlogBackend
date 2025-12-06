@@ -16,6 +16,18 @@ class PostSimpleBaseVO(BaseModel):
     tag_names: str | None = None
     category_names: str | None = None
 
+    @field_serializer("tag_names")
+    def serialize_tag_names(self, tag_names: str | None) -> List[str]:
+        if tag_names is None:
+            return []
+        return tag_names.split(",")
+    
+    @field_serializer("category_names")
+    def serialize_category_names(self, category_names: str | None) -> List[str]:
+        if category_names is None:
+            return []
+        return category_names.split(",")
+
 
 class PostDetailBase(BaseModel):
     """
@@ -99,6 +111,20 @@ class U_PostInfo(BaseModel):
         if category_ids.find(',') == -1:
             return [int(category_ids)]
         return [int(id) for id in category_ids.split(",")]
+
+    @field_serializer("tag_names")
+    def serialize_tag_names(self, tag_names: str | None) -> List[str]:
+        if tag_names is None:
+            return []
+        return tag_names.split(",")
+    
+    @field_serializer("category_names")
+    def serialize_category_names(self, category_names: str | None) -> List[str]:
+        if category_names is None:
+            return []
+        return category_names.split(",")
+
+    
     
 
 class U_PostDetailVO(PostSimpleBaseVO):

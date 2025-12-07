@@ -20,19 +20,19 @@ register_exception_handlers(app)
 # 注册鉴权中间件
 app.add_middleware(AuthMiddleware)
 
-origins = [
-    "http://localhost",
-    "http://localhost:8080",
-    "https://localhost:3006",
-]
+# origins = [
+#     "http://localhost",
+#     "http://localhost:8080",
+#     "http://localhost:3006",
+# ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=origins,
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
@@ -42,18 +42,6 @@ app.include_router(auth_router, prefix="/api/v1")
 @app.get('/')
 async def welcome() -> dict:
     return {"message": "Welcome to my Page!!"}
-
-
-
-if __name__ == "__main__":
-    # uvicorn_default_logger = logging.getLogger("uvicorn")
-    # uvicorn_default_logger.disabled = True
-    uvicorn.run(app,host="127.0.0.1",port=8000)
-
-    
-    
-
-
 
 def custom_openapi():
     if app.openapi_schema:
@@ -84,8 +72,11 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-    
-    
+if __name__ == "__main__":
+    # uvicorn_default_logger = logging.getLogger("uvicorn")
+    # uvicorn_default_logger.disabled = True
+    uvicorn.run(app,host="127.0.0.1",port=8000)
+
 
 
 

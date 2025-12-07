@@ -3,7 +3,7 @@
 api/docs/
 .pytest_cache/
 
-resources/blogs/
+resources/blogs/*.md
 
 __pycache__/
 

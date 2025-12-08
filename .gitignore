@@ -1,6 +1,9 @@
 .idea/
 .vscode/
-api/docs/
+
+.venv/
+
+app/api/docs/
 .pytest_cache/
 
 resources/blogs/*.md
@@ -11,3 +14,7 @@ __pycache__/
 .trae/
 
 ./docs/
+
+.env
+.env.development
+.env.production

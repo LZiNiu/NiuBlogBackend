@@ -1,14 +1,12 @@
 import uvicorn
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
-from api.v1.auth.AuthController import auth_router
-from api.v1.admin import admin_router
-from api.v1.user import users_router
-from handler.exception_handlers import register_exception_handlers
-from middleware.auth_middleware import AuthMiddleware
-from core.config import settings
-from core.lifespan import lifespan
+from app.api.v1.auth.AuthController import auth_router
+from app.api.v1.admin import admin_router
+from app.api.v1.user import users_router
+from app.handler.exception_handlers import register_exception_handlers
+from app.middleware.auth_middleware import AuthMiddleware
+from app.core.lifespan import lifespan
 from fastapi.openapi.utils import get_openapi
 
 

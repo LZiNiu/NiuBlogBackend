@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 # sys.path.insert(0, str(Path("..").resolve()))
 import os
@@ -7,13 +6,13 @@ import asyncio
 
 from typing import List, Optional, Tuple
 
-from core.config import settings
-from model.db import _ensure_engine
+from app.core import settings
+from app.model import _ensure_engine
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from services.post import PostService, get_post_mapper, get_category_mapper, get_tag_mapper
-from model.dto.post import PostCreateDTO
+from app.services import PostService, get_post_mapper, get_category_mapper, get_tag_mapper
+from app.model.dto.post import PostCreateDTO
 
 
 
@@ -58,7 +57,7 @@ async def _import_one(session: AsyncSession, service: PostService, path: Path) -
 
 async def main() -> None:
     _ensure_engine()
-    from model.db import SessionLocal
+    from app.model import SessionLocal
     async with SessionLocal() as session:
         service = PostService(session, get_post_mapper(), get_category_mapper(), get_tag_mapper())
         base = settings.app.BLOG_STORAGE_DIR.resolve()

@@ -1,6 +1,5 @@
-import time
 from datetime import timedelta
-from utils.auth_utils import JwtUtil
+from app.utils.auth_utils import JwtUtil
 
 def test_access_token_issue_and_decode():
     payload = {"user_id": "123", "username": "alice", "role": "user"}

@@ -1,5 +1,5 @@
 from pydantic import Field
-from app.core._settings import (
+from ._settings import (
     AppSettings,
     DatabaseSettings,
     JWTSettings,

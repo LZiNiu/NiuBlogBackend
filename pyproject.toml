@@ -12,7 +12,6 @@ dependencies = [
     "colorama>=0.4.6",
     "cryptography>=46.0.3",
     "fastapi>=0.121.1",
-    "passlib>=1.7.4",
     "pydantic-settings>=2.12.0",
     "pydantic[email]>=2.12.4",
     "pyjwt>=2.10.1",
@@ -28,7 +27,6 @@ dependencies = [
 [[tool.uv.index]]
 url = "https://mirrors.aliyun.com/pypi/simple"
 default = true
-
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

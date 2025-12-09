@@ -1,8 +1,9 @@
 from typing import Iterable, List, Optional, Tuple
 
-from sqlalchemy import RowMapping, delete, insert, select, func
+from sqlalchemy import RowMapping, delete, insert, select, func, literal_column
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.model.common import Base
 from app.model.vo.post import PostCardVO, PostInfoWithPath, PostTableVO, U_PostInfo
 from app.model.orm.models import Category, Post, PostCategory, PostTag, Tag
 from app.repository.BaseMapper import BaseMapper
@@ -11,6 +12,17 @@ from app.repository.BaseMapper import BaseMapper
 class PostMapper(BaseMapper[Post]):
     def __init__(self):
         super().__init__(Post)
+    
+    def __aggregate_expr(self, table: Base, column_name: str, order_by: str = "id"):
+        return literal_column(f"{table.__tablename__}.{column_name} ORDER BY {table.__tablename__}.{order_by}").distinct()
+
+    def __post_aggregate_exprs(self) -> Iterable[str]:
+        return [self.__aggregate_expr(table, column_name, order_by) for table, column_name, order_by in [
+            (PostCategory, "category_id", "category_id"),
+            (Category, "name", "id"),
+            (PostTag, "tag_id", "tag_id"),
+            (Tag, "name", "id")
+        ]]
 
     async def paginate_cards(
         self,
@@ -20,12 +32,12 @@ class PostMapper(BaseMapper[Post]):
         category_id: Optional[int] = None,
         tag_id: Optional[int] = None,
     ) -> Tuple[List[dict], int]:
-        
+        c_id_expr, c_name_expr, t_id_expr, t_name_expr = self.__post_aggregate_exprs()
         stmt = (select(*self.select_fields(Post, PostCardVO),
-                        func.aggregate_strings(Tag.name.distinct(), ",").label("tag_names"),
-                        func.aggregate_strings(Category.name.distinct(), ",").label("category_names"),
-                        func.aggregate_strings(PostTag.tag_id.distinct(), ",").label("tag_ids"),
-                        func.aggregate_strings(PostCategory.category_id.distinct(), ",").label("category_ids")
+                        func.aggregate_strings(t_name_expr, ",").label("tag_names"),
+                        func.aggregate_strings(c_name_expr, ",").label("category_names"),
+                        func.aggregate_strings(t_id_expr, ",").label("tag_ids"),
+                        func.aggregate_strings(c_id_expr, ",").label("category_ids")
                 ).select_from(Post)
                 .join(PostCategory, PostCategory.post_id == Post.id, isouter=True)
                 .join(Category, Category.id == PostCategory.category_id, isouter=True)
@@ -53,11 +65,12 @@ class PostMapper(BaseMapper[Post]):
         return row["content_file_path"]
 
     async def get_post_info_with_path(self, session: AsyncSession, post_id: int) -> PostInfoWithPath | None:
+        t_name_expr, c_name_expr, t_id_expr, c_id_expr = self.__post_aggregate_exprs()
         stmt = (select(*self.select_fields(Post, PostInfoWithPath),
-                func.aggregate_strings(Tag.name.distinct(), ",").label("tag_names"),
-                func.aggregate_strings(Category.name.distinct(), ",").label("category_names"),
-                func.aggregate_strings(PostTag.tag_id.distinct(), ",").label("tag_ids"),
-                func.aggregate_strings(PostCategory.category_id.distinct(), ",").label("category_ids"),
+                func.aggregate_strings(t_name_expr, ",").label("tag_names"),
+                func.aggregate_strings(c_name_expr, ",").label("category_names"),
+                func.aggregate_strings(t_id_expr, ",").label("tag_ids"),
+                func.aggregate_strings(c_id_expr, ",").label("category_ids"),
             )
             .select_from(Post)
             .join(PostCategory, PostCategory.post_id == Post.id, isouter=True)
@@ -76,11 +89,12 @@ class PostMapper(BaseMapper[Post]):
     async def get_u_post_info(self, session: AsyncSession, post_id: int) -> U_PostInfo | None:
         """获取用户端文章详情页的文章基本信息
         """
+        t_name_expr, c_name_expr, t_id_expr, c_id_expr = self.__post_aggregate_exprs()
         stmt = (select(*self.select_fields(Post, U_PostInfo),
-            func.aggregate_strings(Tag.name.distinct(), ",").label("tag_names"),
-            func.aggregate_strings(Category.name.distinct(), ",").label("category_names"),
-            func.aggregate_strings(PostTag.tag_id.distinct(), ",").label("tag_ids"),
-            func.aggregate_strings(PostCategory.category_id.distinct(), ",").label("category_ids"),
+                func.aggregate_strings(t_name_expr, ",").label("tag_names"),
+                func.aggregate_strings(c_name_expr, ",").label("category_names"),
+                func.aggregate_strings(t_id_expr, ",").label("tag_ids"),
+                func.aggregate_strings(c_id_expr, ",").label("category_ids"),
         )
         .select_from(Post)
         .join(PostCategory, PostCategory.post_id == Post.id, isouter=True)
@@ -100,11 +114,12 @@ class PostMapper(BaseMapper[Post]):
         """获取文章表格展示信息VO, 包含分类、标签等关联信息, 不包含文章内容, """
         # 获取 Post 表的所有列
         colmuns = self.select_fields(Post, PostTableVO)
+        t_name_expr, c_name_expr, t_id_expr, c_id_expr = self.__post_aggregate_exprs()
         stmt = (select(*colmuns,
-            func.aggregate_strings(Tag.name.distinct(), ",").label("tag_names"),
-            func.aggregate_strings(Category.name.distinct(), ",").label("category_names"),
-            func.aggregate_strings(PostTag.tag_id.distinct(), ",").label("tag_ids"),
-            func.aggregate_strings(PostCategory.category_id.distinct(), ",").label("category_ids"),
+                func.aggregate_strings(t_name_expr, ",").label("tag_names"),
+                func.aggregate_strings(c_name_expr, ",").label("category_names"),
+                func.aggregate_strings(t_id_expr, ",").label("tag_ids"),
+                func.aggregate_strings(c_id_expr, ",").label("category_ids"),
         )
         .select_from(Post)
         .join(PostCategory, PostCategory.post_id == Post.id, isouter=True)

@@ -1,115 +1,144 @@
 import logging
+import sys
 import traceback
+from logging.handlers import RotatingFileHandler
 from typing import Optional
 
-from colorama import init as colorama_init, Fore, Style
+from colorama import Fore, Style, init
 
+init(autoreset=True)
 from app.core import settings
 
-# 初始化 Windows 控制台颜色支持
-colorama_init(autoreset=True)
+class ColoredFormatter(logging.Formatter):
+    COLORS = {
+        'DEBUG': Fore.CYAN,
+        'INFO': Fore.GREEN,
+        'WARNING': Fore.YELLOW,
+        'ERROR': Fore.RED,
+        'CRITICAL': Fore.MAGENTA + Style.BRIGHT,
+    }
 
+    def __init__(self, fmt: Optional[str] = None, datefmt: Optional[str] = None, style='%'):
+        effective_fmt = fmt or settings.log.format
+        effective_datefmt = datefmt or settings.log.date_format
+        super().__init__(fmt=effective_fmt, datefmt=effective_datefmt, style=style)
 
-# 颜色定义
-LEVEL_COLORS = {
-    logging.DEBUG: Fore.BLUE + Style.BRIGHT,
-    logging.INFO: Fore.GREEN + Style.BRIGHT,
-    logging.WARNING: Fore.YELLOW + Style.BRIGHT,
-    logging.ERROR: Fore.RED + Style.BRIGHT,
-    logging.CRITICAL: Fore.MAGENTA + Style.BRIGHT,
-}
+    def format(self, record):
+        # ... (此部分与之前相同，用于处理常规日志的颜色) ...
+        original_exc_info = record.exc_info
+        original_exc_text = record.exc_text
 
-# 其他部分的配色
-TIME_COLOR = Fore.CYAN
-NAME_COLOR = Fore.MAGENTA + Style.BRIGHT
-RESET = Style.RESET_ALL
+        if record.exc_info and settings.log.exceptions:
+            record.exc_text = self.formatException(record.exc_info)
 
+        log_message = super().format(record)
+        
+        record.exc_info = original_exc_info
+        record.exc_text = original_exc_text
 
-class ColorizedFormatter(logging.Formatter):
-    """
-    彩色日志格式化器 + 浅堆栈
-    格式: 时间 [级别] logger名:行号 - 消息
-    """
+        level_color = self.COLORS.get(record.levelname, '')
+        colored_level = f"{level_color}{record.levelname}{Style.RESET_ALL}"
 
-    def __init__(self, fmt: Optional[str] = None, datefmt: Optional[str] = None, max_frames: int = 6):
-        fmt = fmt or "%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s"
-        datefmt = datefmt or "%Y-%m-%d %H:%M:%S"
-        super().__init__(fmt=fmt, datefmt=datefmt)
-        self.max_frames = max_frames
-
-    def format(self, record: logging.LogRecord) -> str:
-        # 着色级别
-        level_color = LEVEL_COLORS.get(record.levelno, "")
-        record.levelname = f"{level_color}{record.levelname}{RESET}"
-        # 着色时间
-        record.asctime = f"{TIME_COLOR}{self.formatTime(record, self.datefmt)}{RESET}"
-        # 着色 logger 名字和行号
-        record.name = f"{NAME_COLOR}{record.name}{RESET}"
-        return super().format(record)
+        # 优化：只在格式字符串中包含行号时，才尝试替换它
+        # 这使得同一个 Formatter 可以处理带和不带行号的格式
+        if self._fmt and "%(lineno)d" in self._fmt:
+            colored_module_line = f"{Fore.BLUE}{record.name}:{record.lineno}{Style.RESET_ALL}"
+            # 使用更精确的替换，避免误伤
+            placeholder = f"{record.name}:{record.lineno}"
+            if placeholder in log_message:
+                log_message = log_message.replace(placeholder, colored_module_line, 1)
+        log_message = log_message.replace(record.levelname, colored_level, 1)
+        
+        return log_message
 
     def formatException(self, ei) -> str:
         """
-        将异常堆栈裁剪到最后 max_frames 帧，并着色异常类型与消息。
+        格式化异常堆栈，并根据配置限制其深度。
         """
-        lines = traceback.format_exception(*ei)
-        # 找到 Traceback 标识并保留结尾的 max_frames 帧
-        try:
-            tb_start = next(i for i, l in enumerate(lines) if l.strip().startswith("Traceback"))
-        except StopIteration:
-            tb_start = 0
+        if not settings.log.exceptions or settings.log.stack_trace_level <= 0:
+            # 如果不记录异常或层级为0，则只记录异常类型和消息
+            return "".join(traceback.format_exception_only(ei[0], ei[1]))
 
-        frames = lines[tb_start + 1 : -1]  # 仅帧，不含最后的异常行
-        trimmed = frames[-self.max_frames :] if self.max_frames and len(frames) > self.max_frames else frames
-        exc_line = lines[-1].strip()
+        tb = ei[2]
+        extracted_list = []
+        # traceback.walk_tb 从内到外遍历堆栈
+        for frame, line_no in traceback.walk_tb(tb):
+            if len(extracted_list) >= settings.log.stack_trace_level:
+                break
+            extracted_list.append((frame.f_code.co_filename, line_no, frame.f_code.co_name, 'line'))
+        
+        # 反转列表以获得从外到内的正确顺序
+        extracted_list.reverse()
 
-        colored_exc = f"{Fore.RED}{Style.BRIGHT}{exc_line}{RESET}"
-        return "".join(["Traceback (most recent call last):\n", *trimmed, colored_exc])
+        # 格式化堆栈和异常信息
+        formatted_stack = traceback.format_list(extracted_list)
+        formatted_exception = traceback.format_exception_only(ei[0], ei[1])
+        full_trace = "".join(formatted_stack) + "".join(formatted_exception)
 
+        # 为整个堆栈信息添加颜色
+        colored_full_trace = "".join([f"{Fore.RED}{line}{Style.RESET_ALL}" for line in full_trace])
+        
+        return colored_full_trace
 
-def setup_logging(name: str = None, level: str = "INFO", max_frames: int = settings.log.STACK_FRAMES) -> logging.Logger:
+def setup_logging():
     """
-    初始化根 logger，应用彩色格式器与浅堆栈。
+    根据配置设置全局日志处理器，并强制禁用 Uvicorn 的访问日志。
     """
-    if name:
-        root = logging.getLogger(name)
-    else:
-        root = logging.getLogger()
-    root.setLevel(level.upper())
+    root_logger = logging.getLogger()
+    root_logger.setLevel(settings.log.level.upper())
+    root_logger.handlers.clear()
 
-    # 清理已有 console handler，避免重复输出
-    root.handlers = [h for h in root.handlers if not isinstance(h, logging.StreamHandler)]
+    # --- 控制台处理器 ---
+    if settings.log.handler in ["console", "both"]:
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(settings.log.level.upper())
+        console_formatter = ColoredFormatter()
+        console_handler.setFormatter(console_formatter)
+        root_logger.addHandler(console_handler)
 
-    console = logging.StreamHandler()
-    console.setFormatter(ColorizedFormatter(max_frames=max_frames))
-    root.addHandler(console)
-    return root
+    # --- 文件处理器 ---
+    if settings.log.handler in ["file", "both"]:
+        file_handler = RotatingFileHandler(
+            str(settings.log.file_path),
+            maxBytes=settings.log.file_max_size_mb * 1024 * 1024,
+            backupCount=settings.log.file_backup_count,
+            encoding='utf-8'
+        )
+        file_handler.setLevel(settings.log.level.upper())
+        file_formatter = logging.Formatter(fmt=settings.log.format, datefmt=settings.log.date_format)
+        file_handler.setFormatter(file_formatter)
+        root_logger.addHandler(file_handler)
 
+    # # --- 应用第三方库日志级别覆盖 ---
+    # for logger_name, level_name in settings.log.override_loggers.items():
+    #     logging.getLogger(logger_name).setLevel(level_name.upper())
 
-def get_log_config(level: str = "INFO", max_frames: int = 6) -> dict:
-    """
-    提供给 uvicorn.run 的 dictConfig，用我们自定义的 formatter。
-    """
-    return {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "colorized": {
-                "()": "utils.logger.ColorizedFormatter",
-                "fmt": "%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s",
-                "datefmt": "%H:%M:%S",
-                "max_frames": max_frames,
-            },
-        },
-        "handlers": {
-            "console": {
-                "class": "logging.StreamHandler",
-                "formatter": "colorized",
-                "stream": "ext://sys.stdout",
-            },
-        },
-        "loggers": {
-            "uvicorn": {"handlers": ["default"], "level": "INFO", "propagate": False},
-            "uvicorn.access": {"handlers": ["access"], "level": "INFO", "propagate": False},
-        },
-        "root": {"handlers": ["console"], "level": level.upper()},
-    }
+    # ==============================================================================
+    # === 强制管理 Uvicorn 日志 ===
+    # ==============================================================================
+    # 1. 彻底禁用 uvicorn.error 日志
+    uvicorn_error_logger = logging.getLogger("uvicorn.error")
+    uvicorn_error_logger.handlers.clear()
+    uvicorn_error_logger.propagate = False
+    # 设置一个极高的级别，作为双重保险
+    uvicorn_error_logger.setLevel(logging.CRITICAL + 1)
+
+    # 2. 静默 uvicorn 根 logger
+    # 这可以捕获一些未被 uvicorn.error 处理的杂项日志。
+    # uvicorn_logger = logging.getLogger("uvicorn")
+    # uvicorn_logger.handlers.clear()
+    # uvicorn_logger.propagate = False
+    # uvicorn_logger.setLevel(logging.CRITICAL + 1)
+    
+    # 1. 阻止sqlalchemy日志传播到根 logger，消除重复输出
+    sqlalchemy_logger = logging.getLogger("sqlalchemy.engine")
+    sqlalchemy_logger.propagate = False
+
+def get_logger(name: Optional[str] = None) -> logging.Logger:
+    return logging.getLogger(name)
+
+def cleanup_logging():
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        handler.close()
+        root_logger.removeHandler(handler)

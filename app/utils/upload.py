@@ -6,10 +6,10 @@ from qiniu import Auth, put_file_v2
 from app.core import settings
 from app.core import path_conf
 import time
-from app.utils.logger import setup_logging
+from app.utils.logger import get_logger
 import shutil
 
-_logger = setup_logging("upload")
+_logger = get_logger(__name__)
 # 本地存储
 def _safe_name(name: str) -> str:
     p = Path(name)

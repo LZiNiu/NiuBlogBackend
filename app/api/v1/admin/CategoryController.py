@@ -7,7 +7,7 @@ from app.services.category import CategoryService, get_category_service
 from app.model.entity import Category
 
 
-router = APIRouter(prefix="/categories", tags=["admin-categories"]) 
+router = APIRouter(prefix="/categories", tags=["管理端分类接口"]) 
 
 
 @router.get("")

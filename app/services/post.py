@@ -1,89 +1,78 @@
-from typing import Optional, Tuple
 from pathlib import Path
-import aiofiles
+from typing import Optional, Tuple
 
+import aiofiles
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import path_conf
 from app.core import settings
-from app.model import PaginatedResponse
-from app.repository import CategoryMapper
-from app.repository.PostMapper import PostMapper
-from app.repository import TagMapper
-from app.model.enums import PostStatus
 from app.db.session import get_session
-from app.model.dto.post import PostCreateDTO, PostUpdateDTO
+from app.model import PaginatedResponse
 from app.model import Post
-from app.model.vo.post import U_PostDetailVO, PostEditVO, PostTableVO, U_PostInfo
+from app.model.dto.post import PostCreateDTO, PostUpdateDTO
+from app.model.orm.field_enum import PostStatus
+from app.model.vo.post import PostEditVO, PostTableVO, U_PostDetailVO, U_PostInfo
+from app.repository import (
+    CategoryMapper,
+    PostMapper,
+    TagMapper,
+    get_category_mapper,
+    get_post_mapper,
+    get_tag_mapper,
+)
 from app.services.base import BaseService
 
 
-def get_post_mapper() -> PostMapper:
-    return PostMapper()
-
-
-def get_category_mapper() -> CategoryMapper:
-    return CategoryMapper()
-
-
-def get_tag_mapper() -> TagMapper:
-    return TagMapper()
-
-
-class PostService(BaseService):
-    def __init__(self, session: AsyncSession, post_mapper: PostMapper, category_mapper: CategoryMapper,
+class PostService(BaseService[PostMapper]):
+    def __init__(self, session: AsyncSession, post_mapper, category_mapper: CategoryMapper,
                  tag_mapper: TagMapper):
-        super().__init__(session)
-        self.post_mapper = post_mapper
+        super().__init__(session, post_mapper)
         self.category_mapper = category_mapper
         self.tag_mapper = tag_mapper
 
-    async def paginated_card_info(self, page: int, size: int, category_id: Optional[int] = None,
-                                  tag_id: Optional[int] = None) -> PaginatedResponse:
-        rows, total = await self.post_mapper.paginate_cards(self.session, page, size, category_id, tag_id)
-        return PaginatedResponse(total=total, records=rows, current=page, size=size)
-
-    async def paginated_table_post_vo(self, page: int, size: int) -> Tuple[list[PostTableVO] | None, int]:
-        row, total = await self.post_mapper.paginated_table_post_vo(self.session, page, size)
-        if not row:
-            return None, 0
-        return row, total
-
-    async def get_u_post_info(self, post_id: int) -> U_PostInfo | None:
-        row = await self.post_mapper.get_u_post_info(self.session, post_id)
-        return row
-
-    async def get_article_edit(self, post_id: int) -> PostEditVO | None:
-        row = await self.post_mapper.get_post_info_with_path(self.session, post_id)
-        if not row:
-            return None
-        # 获取文章正文
-        path = Path(row.content_file_path)
-        if not path.is_absolute():
-            path = path_conf.BLOG_DIR / path
+    async def _read_content(self, path: str | Path) -> str | None:
         try:
-            async with aiofiles.open(str(path), "r", encoding="utf-8") as f:
-                content = await f.read()
-        except Exception as e:
-            self.logger.error(f"读取文章正文文件失败: {e}")
-            content = ""
-        return PostEditVO(**row.model_dump(), content=content)
-
-    async def get_article_complete(self, post_id: int) -> U_PostDetailVO | None:
-        row = await self.post_mapper.get_post_info_with_path(self.session, post_id)
-        if not row:
-            return None
-        try:
-            path = Path(row.content_file_path)
+            path = Path(path)
             if not path.is_absolute():
                 path = path_conf.BLOG_DIR / path
             if path.is_file():
                 async with aiofiles.open(str(path), "r", encoding="utf-8") as f:
                     content = await f.read()
-        except Exception as e:
+        except (FileNotFoundError, PermissionError, IOError) as e:
             self.logger.error(f"读取文章正文文件失败: {e}")
-            content = ""
+            return None
+        return content
+
+    async def paginated_card_info(self, page: int, size: int, category_id: Optional[int] = None,
+                                  tag_id: Optional[int] = None) -> PaginatedResponse:
+        rows, total = await self.mapper.paginate_cards(self.session, page, size, category_id, tag_id)
+        return PaginatedResponse(total=total, records=rows, current=page, size=size)
+
+    async def paginated_table_post_vo(self, page: int, size: int) -> Tuple[list[PostTableVO] | None, int]:
+        row, total = await self.mapper.paginated_table_post_vo(self.session, page, size)
+        if not row:
+            return None, 0
+        return row, total
+
+    async def get_u_post_info(self, post_id: int) -> U_PostInfo | None:
+        row = await self.mapper.get_u_post_info(self.session, post_id)
+        return row
+
+    async def get_article_edit(self, post_id: int) -> PostEditVO | None:
+        row = await self.mapper.get_post_info_with_path(self.session, post_id)
+        if not row:
+            return None
+        # 获取文章正文
+        content = self._read_content(row.content_file_path)
+        return PostEditVO(**row.model_dump(), content=content)
+
+    async def get_article_complete(self, post_id: int) -> U_PostDetailVO | None:
+        row = await self.mapper.get_post_info_with_path(self.session, post_id)
+        if not row:
+            return None
+        # 获取文章正文
+        content = self._read_content(row.content_file_path)
         return U_PostDetailVO(**row.model_dump(), content=content)
 
     async def create_post(self, dto: PostCreateDTO) -> int:
@@ -103,11 +92,11 @@ class PostService(BaseService):
             author_id=settings.app.AUTHOR_ID,
             author_name=settings.app.AUTHOR_NAME,
         )
-        obj_id = await self.post_mapper.create(self.session, obj)
-        await self.post_mapper.remove_categories(self.session, obj_id)
-        await self.post_mapper.add_categories(self.session, obj_id, dto.category_ids)
-        await self.post_mapper.remove_tags(self.session, obj_id)
-        await self.post_mapper.add_tags(self.session, obj_id, dto.tag_ids)
+        obj_id = await self.mapper.create(self.session, obj)
+        await self.mapper.remove_categories(self.session, obj_id)
+        await self.mapper.add_categories(self.session, obj_id, dto.category_ids)
+        await self.mapper.remove_tags(self.session, obj_id)
+        await self.mapper.add_tags(self.session, obj_id, dto.tag_ids)
         return obj_id
 
     async def update_post(self, post_id: int, dto: PostUpdateDTO) -> None:
@@ -117,66 +106,55 @@ class PostService(BaseService):
         # 分离content
         content = update_dict.pop("content", None)
         self.logger.debug(f"更新文章{post_id}")
-        await self.post_mapper.update(self.session, post_id, update_dict)
+        await self.mapper.update(self.session, post_id, update_dict)
         self.logger.debug(f"post: {post_id}: 删除关联表信息")
-        await self.post_mapper.remove_categories(self.session, post_id)
-        await self.post_mapper.remove_tags(self.session, post_id)
+        await self.mapper.remove_categories(self.session, post_id)
+        await self.mapper.remove_tags(self.session, post_id)
         if rel_categories is not None:
-            await self.post_mapper.add_categories(self.session, post_id, rel_categories or [])
+            await self.mapper.add_categories(self.session, post_id, rel_categories or [])
         if rel_tags is not None:
-            await self.post_mapper.add_tags(self.session, post_id, rel_tags or [])
+            await self.mapper.add_tags(self.session, post_id, rel_tags or [])
         # 更新内容
         self.logger.debug(f"post: {post_id}: 关联表更新完成")
         # 1. 查出路径
-        content_file_path = await self.post_mapper.get_content_path(self.session, post_id)
+        content_file_path = await self.mapper.get_content_path(self.session, post_id)
         if not content_file_path:
             return
         # 2. 写入内容
         path = Path(content_file_path)
         if not path.is_absolute():
-            path = settings.app.BLOG_STORAGE_DIR / path
+            path = path_conf.BLOG_DIR / path
         self.logger.debug(f"post: {post_id}: 尝试打开内容文件路径: {path}")
         async with aiofiles.open(str(path), "w", encoding="utf-8") as f:
             self.logger.debug(f"post: {post_id}: 尝试保存内容")
             await f.write(content)
 
     async def delete_post(self, post_id: int) -> None:
-        await self.post_mapper.delete(self.session, post_id)
-        await self.post_mapper.remove_categories(self.session, post_id)
-        await self.post_mapper.remove_tags(self.session, post_id)
+        await self.mapper.delete(self.session, post_id)
+        await self.mapper.remove_categories(self.session, post_id)
+        await self.mapper.remove_tags(self.session, post_id)
 
     async def delete_posts(self, ids: list[int]) -> int:
-        count = await self.post_mapper.delete_batch(self.session, ids)
-        await self.post_mapper.remove_categories_batch(self.session, ids)
-        await self.post_mapper.remove_tags_batch(self.session, ids)
+        count = await self.mapper.delete_batch(self.session, ids)
+        await self.mapper.remove_categories_batch(self.session, ids)
+        await self.mapper.remove_tags_batch(self.session, ids)
         return count
 
     async def update_status(self, post_id: int, status_value: str) -> bool:
-        await self.post_mapper.update(self.session, post_id, {"status": status_value})
+        await self.mapper.update(self.session, post_id, {"status": status_value})
         return True
 
     async def get_content(self, post_id: int) -> str | None:
-        path = await self.post_mapper.get_content_path(self.session, post_id)
+        path = await self.mapper.get_content_path(self.session, post_id)
         if not path:
             return None
-        try:
-            path = Path(path)
-            if not path.is_absolute():
-                path = settings.app.BLOG_STORAGE_DIR / path
-            if not path.is_file():
-                self.logger.info(f"文件不存在: {path}")
-                return None
-            async with aiofiles.open(str(path), "r", encoding="utf-8") as f:
-                content = await f.read()
-                return content
-        except RuntimeError as e:
-            return None
+        return self._read_content(path)
 
     async def increment_like_count(self, post_id: int) -> bool:
-        obj = await self.post_mapper.get_by_id(self.session, post_id)
+        obj = await self.mapper.get_by_id(self.session, post_id)
         if not obj:
             return False
-        await self.post_mapper.update(self.session, post_id, {"like_count": obj.like_count + 1})
+        await self.mapper.update(self.session, post_id, {"like_count": obj.like_count + 1})
         return True
 
 

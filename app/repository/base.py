@@ -69,7 +69,7 @@ class BaseMapper(Generic[TableType]):
         return result.scalars().first()
 
     async def get_one(self, session: AsyncSession, 
-                            fields: List[Column] | None = None, **filters) -> Optional[TableType]:
+                            fields: List[str] | type[BaseModel] | None = None, **filters) -> Optional[TableType]:
         """
         根据条件获取首条记录
         
@@ -84,7 +84,7 @@ class BaseMapper(Generic[TableType]):
         if not fields:
             statement = select(self.entity_model)
         else:
-            statement = select(self.entity_model).options(load_only(*fields))  # type: ignore
+            statement = select(self.entity_model).options(load_only(*self.select_fields(self.entity_model, fields)))  # type: ignore
         
         for field, value in filters.items():
             if hasattr(self.entity_model, field):

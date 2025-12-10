@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
-from app.model.orm.models import Role
+from app.model.orm.field_enum import Role
 
 
 # ==================== DTO 模型 ====================

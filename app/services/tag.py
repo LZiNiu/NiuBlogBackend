@@ -3,20 +3,15 @@ from typing import List
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repository import TagMapper
+from app.repository import TagMapper, get_tag_mapper
 from app.db.session import get_session
 from app.model.vo import TagVO
 from app.services.base import BaseService
 
 
-def get_tag_mapper() -> TagMapper:
-    return TagMapper()
-
-
-class TagService(BaseService):
-    def __init__(self, session: AsyncSession, mapper: TagMapper):
-        super().__init__(session)
-        self.mapper = mapper
+class TagService(BaseService[TagMapper]):
+    def __init__(self, session: AsyncSession, mapper):
+        super().__init__(session, mapper)
 
     async def list_all(self) -> List[TagVO | dict]:
         items = await self.mapper.list_all(self.session)

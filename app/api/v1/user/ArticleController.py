@@ -6,7 +6,7 @@ from app.model.vo.post import PostCardVO, U_PostInfo
 from app.services.post import PostService, get_post_service
 
 
-router = APIRouter(prefix="/articles", tags=["blog-articles"])
+router = APIRouter(prefix="/articles", tags=["用户端文章接口"])
 
 
 @router.get("/pagination", response_model=Result[PaginatedResponse[PostCardVO]])

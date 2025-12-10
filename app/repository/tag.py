@@ -4,7 +4,7 @@ from sqlalchemy import select, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.model.orm.models import Tag
-from .BaseMapper import BaseMapper
+from .base import BaseMapper
 
 
 class TagMapper(BaseMapper[Tag]):
@@ -18,3 +18,9 @@ class TagMapper(BaseMapper[Tag]):
     async def insert_batch(self, session: AsyncSession, tag_names: List[str]) -> None:
         await session.execute(insert(Tag).values([{'name': name} for name in tag_names]))
         await session.commit()
+
+
+_tag_mapper = TagMapper()
+
+def get_tag_mapper() -> TagMapper:
+    return _tag_mapper

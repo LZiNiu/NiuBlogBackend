@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Optional
 from contextvars import ContextVar
 
-from app.model.orm.models import Role
+from app.model.orm.field_enum import Role
 
 
 @dataclass
@@ -14,7 +14,7 @@ class UserContext:
 
     @property
     def is_admin(self) -> bool:
-        return self.role in [Role.ADMIN.value, Role.SUPER.value]
+        return self.role.upper() in [Role.ADMIN, Role.SUPER]
 
 
 user_ctx: ContextVar[Optional[UserContext]] = ContextVar("user_ctx", default=None)

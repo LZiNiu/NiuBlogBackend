@@ -9,7 +9,7 @@ from app.model.vo.post import PostEditVO, PostTableVO
 from app.services.post import PostService, get_post_service
 from app.utils.upload import save_blog
 
-router = APIRouter(prefix="/articles", tags=["admin-articles"])
+router = APIRouter(prefix="/articles", tags=["管理端文章接口"])
 
 
 @router.get("/pagination", response_model=Result[PaginatedResponse[PostTableVO]])

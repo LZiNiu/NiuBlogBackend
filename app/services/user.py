@@ -17,10 +17,9 @@ from app.utils.auth_utils import JwtUtil
 from app.utils.cryptpwd import PasswordUtil
 
 
-class UserService(BaseService):
-    def __init__(self, session: AsyncSession, mapper: UserMapper):
-        super().__init__(session)
-        self.mapper = mapper
+class UserService(BaseService[UserMapper]):
+    def __init__(self, session: AsyncSession, mapper):
+        super().__init__(session, mapper)
 
     async def register(self, userRegisterDTO: UserRegisterDTO):
         """
@@ -42,7 +41,7 @@ class UserService(BaseService):
         """
         # 查询用户（仅加载密码哈希字段）
         user = await self.mapper.get_one(self.session, 
-                                fields=self.mapper.select_fields(User, UserVerify), 
+                                fields=list(UserVerify.model_fields.keys()), 
                                 username=login_request.username)
         if not user or not user.is_active:
             self.logger.warning("认证失败：用户不存在或未激活 username=%s", login_request.username)

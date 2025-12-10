@@ -105,6 +105,17 @@ CREATE TABLE `post_tags` (
   INDEX `fk_post_tags_posts1_idx` (`post_id` ASC)
 );
 
+
+CREATE TABLE `timeline` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `date` DATE NOT NULL COMMENT "事件日期",
+  `title` VARCHAR(255) NULL COMMENT "事件标题",
+  `content` TEXT NULL COMMENT "事件内容",
+  `images` JSON NULL COMMENT "相关图片",
+  `event_type` ENUM('coding', 'blog', 'life', 'milestone') NOT NULL DEFAULT 'coding' COMMENT "事件类型",
+  `link` VARCHAR(255) NULL COMMENT "可选外链",
+  PRIMARY KEY (`id`)
+)
 -- -----------------------------------------------------
 -- Add Foreign Key Constraints (Logical, as per requirement)
 -- These are commented out as you prefer logical foreign keys.

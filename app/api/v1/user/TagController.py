@@ -4,7 +4,7 @@ from app.model import Result
 from app.services.tag import TagService, get_tag_service
 
 
-router = APIRouter(prefix="/tags", tags=["blog-tags"])
+router = APIRouter(prefix="/tags", tags=["用户端标签接口"])
 
 
 @router.get("")

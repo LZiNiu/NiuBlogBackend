@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.model.orm.models import User
 from app.model.vo import UserInfoVO
 
-from .BaseMapper import BaseMapper
+from .base import BaseMapper
 
 
 class UserMapper(BaseMapper[User]):

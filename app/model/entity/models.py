@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
-from app.model.enums import Role, PostStatus
+from datetime import datetime, date as pydate
+from app.model.orm.field_enum import Role, PostStatus, TimelineEvent
 # ==================== Pydantic Models (v2) ====================
 
 class User(BaseModel):
@@ -68,3 +68,13 @@ class PostTag(BaseModel):
     tag_id: int
 
     model_config = {"from_attributes": True}
+
+
+class Timeline(BaseModel):
+    id: int | None = None
+    date: pydate | None
+    title: str
+    content: Optional[str] = None
+    images: Optional[list[str]] = None
+    event_type: str = TimelineEvent.coding
+    link: Optional[str] = None

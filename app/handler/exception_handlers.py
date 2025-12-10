@@ -3,11 +3,11 @@ from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from app.utils.logger import setup_logging
+from app.utils.logger import get_logger
 from app.core import BizCode, BizMsg
 
 # 获取 FastAPI 日志记录器
-logger = setup_logging("exception_hanlder")
+logger = get_logger(__name__)
 
 class CattleBlogException(Exception):
     def __init__(self, msg: str, status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR, biz_code: int = BizCode.ERROR):

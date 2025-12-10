@@ -7,7 +7,7 @@ import uuid
 import time
 from app.model import JwtPayload
 from app.db.redis import get_redis
-from app.utils.logger import setup_logging
+from app.utils.logger import get_logger
 
 _REVOKED_JTIS: dict[str, int] = {}
 
@@ -63,7 +63,7 @@ async def is_token_revoked(jti: str) -> bool:
 
 
 class JwtUtil:
-    logger = setup_logging(__name__)
+    logger = get_logger(__name__)
 
     @staticmethod
     def create_access_token(to_encode: dict | JwtPayload, expires_delta: Optional[timedelta] = None) -> str:

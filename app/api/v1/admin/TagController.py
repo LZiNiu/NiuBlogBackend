@@ -8,7 +8,7 @@ from app.services.tag import TagService, get_tag_service
 from app.model.entity import Tag
 
 
-router = APIRouter(prefix="/tags", tags=["admin-tags"]) 
+router = APIRouter(prefix="/tags", tags=["管理端标签接口"]) 
 
 
 @router.get("")

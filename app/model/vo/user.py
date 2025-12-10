@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr
-from app.model.orm.models import Role
+from app.model.orm.field_enum import Role
 
 # ==================== VO 模型 ====================
 class UserVerify(BaseModel):

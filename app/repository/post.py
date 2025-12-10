@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.model.common import Base
 from app.model.vo.post import PostCardVO, PostInfoWithPath, PostTableVO, U_PostInfo
 from app.model.orm.models import Category, Post, PostCategory, PostTag, Tag
-from app.repository.BaseMapper import BaseMapper
+from .base import BaseMapper
 
 
 class PostMapper(BaseMapper[Post]):
@@ -179,3 +179,8 @@ class PostMapper(BaseMapper[Post]):
         """批量删除文章的所有标签关联。"""
         await session.execute(delete(PostTag).where(PostTag.post_id.in_(post_ids)))
         await session.commit()
+
+
+_post_mapper = PostMapper()
+def get_post_mapper() -> PostMapper:
+    return _post_mapper

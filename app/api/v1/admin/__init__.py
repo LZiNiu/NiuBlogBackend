@@ -6,7 +6,7 @@ from .TagController import router as tag_router
 
 
 
-admin_router = APIRouter(prefix="/admin", tags=["管理端接口"])
+admin_router = APIRouter(prefix="/admin")
 admin_router.include_router(user_router)
 admin_router.include_router(article_router)
 admin_router.include_router(category_router)

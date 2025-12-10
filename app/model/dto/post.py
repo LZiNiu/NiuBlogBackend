@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from app.model.enums import PostStatus
+from app.model.orm.field_enum import PostStatus
 
 
 class PostCreateDTO(BaseModel):

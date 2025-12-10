@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, date as pydate
 from typing import Optional
-from app.model.enums import PostStatus, Role
-from sqlalchemy import DateTime, Integer, String, Text, Enum
+from .field_enum import PostStatus, Role, TimelineEvent
+from sqlalchemy import DateTime, Integer, String, Text, Enum, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from app.core import settings, path_conf
@@ -82,5 +82,24 @@ class PostTag(Base):
     tag_id: Mapped[int] = mapped_column(Integer, primary_key=True)  # 逻辑外键
 
 
+class Timeline(Base):
+    __tablename__ = "timeline"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    date: Mapped[pydate] = mapped_column(
+        nullable=False,
+        comment="事件日期",
+        default=pydate.today,  # 自动使用当前日期
+    )
+    title: Mapped[Optional[str]] = mapped_column(String(255), comment="事件标题")
+    content: Mapped[Optional[str]] = mapped_column(Text, comment="事件内容")
+    images: Mapped[Optional[list[str]]] = mapped_column(JSON, comment="相关图片")
+    event_type: Mapped[TimelineEvent] = mapped_column(
+        Enum(TimelineEvent),
+        nullable=False,
+        default=TimelineEvent.coding,
+        comment="事件类型"
+    )
+    link: Mapped[Optional[str]] = mapped_column(String(255), comment="可选外链")
 
     

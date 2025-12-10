@@ -7,7 +7,7 @@ from starlette.responses import JSONResponse, Response
 
 from app.core import BizCode, BizMsg
 from app.model import Result
-from app.model.orm.models import Role
+from app.model.orm.field_enum import Role
 from app.utils.auth_utils import JwtUtil
 from app.utils.user_context import UserContext, set_user_context, clear_user_context
 

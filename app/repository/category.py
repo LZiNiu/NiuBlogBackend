@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.model.orm.models import Category, PostCategory
 from app.model.vo import CategoryCardVO
-from .BaseMapper import BaseMapper
+from .base import BaseMapper
 
 
 class CategoryMapper(BaseMapper[Category]):
@@ -26,3 +26,9 @@ class CategoryMapper(BaseMapper[Category]):
                         .group_by(Category.id)
         result = await session.execute(stmt)
         return [CategoryCardVO(**dict(row)) for row in result.mappings()]
+
+
+
+_category_mapper = CategoryMapper()
+def get_category_mapper() -> CategoryMapper:
+    return _category_mapper

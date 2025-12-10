@@ -7,7 +7,7 @@ from app.core import BizCode, BizMsg
 from app.services import UserService, get_user_service
 from app.utils.user_context import get_user_context
 
-auth_router = APIRouter(prefix="/auth", tags=["auth"])
+auth_router = APIRouter(prefix="/auth", tags=["认证接口"])
 
 @auth_router.post("/login", response_model=Result)
 async def login(loginRequest: UserLoginRequest, user_service: UserService = Depends(get_user_service)):

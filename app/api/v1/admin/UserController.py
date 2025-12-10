@@ -10,7 +10,7 @@ from app.utils.user_context import get_user_context
 from app.core import BizCode, BizMsg
 
 # admin路由添加鉴权拦截
-router = APIRouter(prefix="/users", tags=["admin-users"])
+router = APIRouter(prefix="/users", tags=["管理端用户接口"])
 
 @router.get("/pagination", response_model=Result[PaginatedResponse])
 async def paginate_users_info(current: int = Query(1, ge=1), size: int = Query(10, ge=1, le=10), 

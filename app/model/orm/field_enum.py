@@ -6,13 +6,13 @@ class PostStatus(str, Enum):
     PUBLISHED = "published"
     ARCHIVED = "archived"
 
-
-class CommentStatus(str, Enum):
-    PROCESSING = "processing"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-
 class Role(str, Enum):
     USER = "USER"
     ADMIN = "ADMIN"
     SUPER = "SUPER"
+
+class TimelineEvent(str, Enum):
+    coding = "coding"
+    blog = "blog"
+    life = "life"
+    milestone = "milestone"

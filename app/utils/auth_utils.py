@@ -49,7 +49,7 @@ async def is_token_revoked(jti: str) -> bool:
     start = time.perf_counter()
     client = await get_redis()
     end = time.perf_counter()
-    JwtUtil.logger.info(f"获取 Redis 客户端耗时: {end - start:.6f} 秒")
+    JwtUtil.logger.debug(f"获取 Redis 客户端耗时: {end - start:.6f} 秒")
     if client is not None:
         try:
             revoked = bool(await client.exists(_revoke_key(jti)))

@@ -20,9 +20,6 @@ class TagService(BaseService[TagMapper]):
     async def paginated_tags(self, current: int, size: int) -> (List[TagVO | dict], int):
         items, total = await self.mapper.paginate(self.session, current, size)
         return items, total
-    
-    async def create_batch(self, tag_names: List[str]) -> None:
-        await self.mapper.insert_batch(self.session, tag_names)
 
 
 def get_tag_service(session: AsyncSession = Depends(get_session), mapper: TagMapper = Depends(get_tag_mapper)) -> TagService:

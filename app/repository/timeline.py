@@ -16,10 +16,6 @@ class TimelineMapper(BaseMapper[TimelineORM]):
         result: Result[Row] = await session.execute(select(*TimelineORM.__table__.c).order_by(TimelineORM.date.desc()))
         return [Timeline(**dict(row)) for row in result.mappings().all()]
 
-    async def insert_batch(self, session: AsyncSession, timeline_events: List[Timeline]) -> None:
-        await session.execute(insert(TimelineORM).values([timeline_event.model_dump() for timeline_event in timeline_events]))
-        await session.commit()
-
 
 _timeline_mapper = TimelineMapper()
 

@@ -44,6 +44,7 @@ class Tag(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     create_time: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=func.now())
     update_time: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=func.now(), onupdate=func.now())
 

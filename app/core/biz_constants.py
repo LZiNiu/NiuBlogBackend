@@ -19,5 +19,6 @@ class BizMsg:
     TOKEN_REQUIRED = "token required"
     FORBIDDEN = "Forbidden"
     VALIDATION_ERROR = "validation failed"
+    DB_RECORD_NOT_FOUND = "数据库记录未找到, 请联系管理员确认id是否正确"
     USER_NOT_FOUND = "用户未找到"
     ARTICLE_NOT_FOUND = "文章未找到"

@@ -15,10 +15,6 @@ class TagMapper(BaseMapper[Tag]):
         result = await session.execute(select(Tag).order_by(Tag.create_time.desc()))
         return list(result.scalars().all())
 
-    async def insert_batch(self, session: AsyncSession, tag_names: List[str]) -> None:
-        await session.execute(insert(Tag).values([{'name': name} for name in tag_names]))
-        await session.commit()
-
 
 _tag_mapper = TagMapper()
 

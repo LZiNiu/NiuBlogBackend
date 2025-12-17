@@ -4,7 +4,8 @@ from pathlib import Path
 from app.model import Result
 from starlette.responses import FileResponse
 from app.model.common import PaginatedResponse
-from app.model.dto.post import PostCreateDTO, PostUpdateDTO
+from app.model.dto.post import PostCreate, PostUpdate
+from app.model.vo.common import CreateResponse
 from app.model.vo.post import PostEditVO, PostTableVO
 from app.services.post import PostService, get_post_service
 from app.utils.upload import save_blog
@@ -26,14 +27,14 @@ async def get_article_edit_info(post_id: int, service: PostService = Depends(get
     return Result.success(data)
 
 
-@router.post("")
-async def create_article(dto: PostCreateDTO, service: PostService = Depends(get_post_service)):
+@router.post("", response_model=Result[CreateResponse])
+async def create_article(dto: PostCreate, service: PostService = Depends(get_post_service)):
     post_id = await service.create_post(dto)
-    return Result.success({"id": post_id})
+    return Result.success(CreateResponse(id=post_id))
 
 
 @router.put("/{post_id}")
-async def update_article(post_id: int, dto: PostUpdateDTO, service: PostService = Depends(get_post_service)):
+async def update_article(post_id: int, dto: PostUpdate, service: PostService = Depends(get_post_service)):
     await service.update_post(post_id, dto)
     return Result.success()
 

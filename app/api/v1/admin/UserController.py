@@ -1,11 +1,10 @@
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from app.handler.exception_handlers import AuthenticationException
 from app.core import settings
 from app.model.common import Result
 from app.model.dto.user import AdminCreateUserRequest, UpdateUserStatus
 from app.model.common import PaginatedResponse
 from app.services import UserService, get_user_service
-from app.utils.upload import upload_image_to_qiniu
 from app.utils.user_context import get_user_context
 from app.core import BizCode, BizMsg
 
@@ -57,12 +56,3 @@ async def delete_user(user_id: int,
 async def create_user(req: AdminCreateUserRequest, user_service: UserService = Depends(get_user_service)):
     data = await user_service.admin_create_user(req)
     return Result.success(data)
-
-
-@router.post("/avatar")
-def upload_avatar(file: UploadFile = File(...), user_service: UserService = Depends(get_user_service)):
-    # 保存文件到指定目录
-    avatar_url, reason = upload_image_to_qiniu(file, "avatar")
-    if not avatar_url:
-        return Result.failure(msg=reason, code=status.HTTP_422_UNPROCESSABLE_CONTENT)
-    return Result.success({"avatar_url": avatar_url})

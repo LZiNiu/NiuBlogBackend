@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 
 from app.model import Result
 from app.model.common import PaginatedResponse
+from app.model.dto.category import CategoryCreate
+from app.model.vo.common import CreateResponse
 from app.services.category import CategoryService, get_category_service
 from app.model.entity import Category
 
@@ -20,13 +21,11 @@ async def paginated_categories(page: int = 1, size: int = 10, service: CategoryS
     items, total = await service.paginated_categories(page, size)
     return Result.success(PaginatedResponse(records=items, total=total, current=page, size=size))
 
-@router.post("")
-async def create_category(body: dict, service: CategoryService = Depends(get_category_service)):
-    category = Category(**body)
-    category.update_time = datetime.now(timezone.utc)
-    category.create_time = datetime.now(timezone.utc)
-    category.id = await service.mapper.create(service.session, category)
-    return Result.success(category)
+
+@router.post("", response_model=Result[CreateResponse])
+async def create_category(body: CategoryCreate, service: CategoryService = Depends(get_category_service)):
+    category_id = await service.mapper.create(service.session, body)
+    return Result.success(CreateResponse(id=category_id))
 
 
 @router.put("/{category_id}")

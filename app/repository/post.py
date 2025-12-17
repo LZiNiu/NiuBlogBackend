@@ -65,7 +65,7 @@ class PostMapper(BaseMapper[Post]):
         return row["content_file_path"]
 
     async def get_post_info_with_path(self, session: AsyncSession, post_id: int) -> PostInfoWithPath | None:
-        t_name_expr, c_name_expr, t_id_expr, c_id_expr = self.__post_aggregate_exprs()
+        c_id_expr, c_name_expr, t_id_expr, t_name_expr = self.__post_aggregate_exprs()
         stmt = (select(*self.select_fields(Post, PostInfoWithPath),
                 func.aggregate_strings(t_name_expr, ",").label("tag_names"),
                 func.aggregate_strings(c_name_expr, ",").label("category_names"),
@@ -89,7 +89,7 @@ class PostMapper(BaseMapper[Post]):
     async def get_u_post_info(self, session: AsyncSession, post_id: int) -> U_PostInfo | None:
         """获取用户端文章详情页的文章基本信息
         """
-        t_name_expr, c_name_expr, t_id_expr, c_id_expr = self.__post_aggregate_exprs()
+        c_id_expr, c_name_expr, t_id_expr, t_name_expr = self.__post_aggregate_exprs()
         stmt = (select(*self.select_fields(Post, U_PostInfo),
                 func.aggregate_strings(t_name_expr, ",").label("tag_names"),
                 func.aggregate_strings(c_name_expr, ",").label("category_names"),
@@ -114,7 +114,7 @@ class PostMapper(BaseMapper[Post]):
         """获取文章表格展示信息VO, 包含分类、标签等关联信息, 不包含文章内容, """
         # 获取 Post 表的所有列
         colmuns = self.select_fields(Post, PostTableVO)
-        t_name_expr, c_name_expr, t_id_expr, c_id_expr = self.__post_aggregate_exprs()
+        c_id_expr, c_name_expr, t_id_expr, t_name_expr = self.__post_aggregate_exprs()
         stmt = (select(*colmuns,
                 func.aggregate_strings(t_name_expr, ",").label("tag_names"),
                 func.aggregate_strings(c_name_expr, ",").label("category_names"),

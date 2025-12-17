@@ -1,26 +1,26 @@
-from typing import List, Optional
+from typing import List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.model.orm.field_enum import PostStatus
 
 
-class PostCreateDTO(BaseModel):
-    title: str
-    summary: str | None = None
-    content: str | None = None
-    post_status: PostStatus
-    category_ids: List[int] | None = None
-    tag_ids: List[int] | None = None
-    category_names: List[str] | None = None
-    tag_names: List[str] | None = None
+class PostCreate(BaseModel):
+    title: str = Field(default="", description="文章标题")
+    summary: str | None = Field(default=None, description="文章摘要")
+    content: str | None = Field(default=None, description="文章内容")
+    post_status: PostStatus = Field(default=PostStatus.DRAFT, description="文章状态")
+    category_ids: List[int] | None = Field(default=None, description="文章分类id列表")
+    tag_ids: List[int] | None = Field(default=None, description="文章标签id列表")
+    category_names: List[str] | None = Field(default=None, description="文章分类名称列表")
+    tag_names: List[str] | None = Field(default=None, description="文章标签名称列表")
 
 
-class PostUpdateDTO(BaseModel):
-    title: Optional[str] = None
-    summary: Optional[str] = None
-    author_name: Optional[str] = None
-    content: Optional[str] = None
-    post_status: PostStatus | None = None
-    category_ids: List[int] | None = []
-    tag_ids: List[int] | None = []
+class PostUpdate(BaseModel):
+    title: str| None = Field(default=None, description="文章标题")
+    summary: str | None = Field(default=None, description="文章摘要")
+    author_name: str | None = Field(default=None, description="文章作者名称")
+    content: str | None = Field(default=None, description="文章内容")
+    post_status: PostStatus | None = Field(default=None, description="文章状态")
+    category_ids: List[int] | None = Field(default=None, description="文章分类id列表")
+    tag_ids: List[int] | None = Field(default=None, description="文章标签id列表")

@@ -10,7 +10,7 @@ from app.core import settings
 from app.db.session import get_session
 from app.model import PaginatedResponse
 from app.model import Post
-from app.model.dto.post import PostCreateDTO, PostUpdateDTO
+from app.model.dto.post import PostCreate, PostUpdate
 from app.model.orm.field_enum import PostStatus
 from app.model.vo.post import PostEditVO, PostTableVO, U_PostDetailVO, U_PostInfo
 from app.repository import (
@@ -64,7 +64,7 @@ class PostService(BaseService[PostMapper]):
         if not row:
             return None
         # 获取文章正文
-        content = self._read_content(row.content_file_path)
+        content = await self._read_content(row.content_file_path)
         return PostEditVO(**row.model_dump(), content=content)
 
     async def get_article_complete(self, post_id: int) -> U_PostDetailVO | None:
@@ -72,10 +72,10 @@ class PostService(BaseService[PostMapper]):
         if not row:
             return None
         # 获取文章正文
-        content = self._read_content(row.content_file_path)
+        content = await self._read_content(row.content_file_path)
         return U_PostDetailVO(**row.model_dump(), content=content)
 
-    async def create_post(self, dto: PostCreateDTO) -> int:
+    async def create_post(self, dto: PostCreate) -> int:
         # 保存文章正文文件
         if dto.content is not None:
             content_file_path = path_conf.BLOG_DIR / f"{dto.title}.md"
@@ -99,7 +99,7 @@ class PostService(BaseService[PostMapper]):
         await self.mapper.add_tags(self.session, obj_id, dto.tag_ids)
         return obj_id
 
-    async def update_post(self, post_id: int, dto: PostUpdateDTO) -> None:
+    async def update_post(self, post_id: int, dto: PostUpdate) -> None:
         update_dict = dto.model_dump(exclude_unset=True)
         rel_categories = update_dict.pop("category_ids", None)
         rel_tags = update_dict.pop("tag_ids", None)
@@ -148,7 +148,7 @@ class PostService(BaseService[PostMapper]):
         path = await self.mapper.get_content_path(self.session, post_id)
         if not path:
             return None
-        return self._read_content(path)
+        return await self._read_content(path)
 
     async def increment_like_count(self, post_id: int) -> bool:
         obj = await self.mapper.get_by_id(self.session, post_id)

@@ -1,8 +1,8 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime, date as pydate
 from app.model.orm.field_enum import Role, PostStatus, TimelineEvent
-# ==================== Pydantic Models (v2) ====================
+
 
 class User(BaseModel):
     id: int | None = None
@@ -35,6 +35,7 @@ class Tag(BaseModel):
     name: str
     create_time: datetime | None = None
     update_time: datetime | None = None
+    description: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -70,11 +71,13 @@ class PostTag(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class Timeline(BaseModel):
+class TimelineBase(BaseModel):
+    date: pydate | None = Field(default=None, description="时间轴事件日期(不默认填充值, 填充交由orm完成)")
+    title: str = Field(default="", description="时间轴事件标题")
+    content: str | None = Field(default=None, description="时间轴事件内容")
+    images: list[str] | None = Field(default=None, description="时间轴事件图片url列表")
+    event_type: str = Field(default=TimelineEvent.coding, description="时间轴事件类型")
+    link: str | None = Field(default=None, description="时间轴事件外链")
+
+class Timeline(TimelineBase):
     id: int | None = None
-    date: pydate | None
-    title: str
-    content: Optional[str] = None
-    images: Optional[list[str]] = None
-    event_type: str = TimelineEvent.coding
-    link: Optional[str] = None

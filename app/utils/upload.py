@@ -87,7 +87,7 @@ def upload_image_to_qiniu(file: UploadFile, upload_key: str) -> Tuple[Optional[s
             # 上传成功，返回访问 URL
             # 测试版本需要生成私有资源下载链接
             download_url = f"{settings.qiniu.DOMAIN.rstrip('/')}/{key}"
-            download_url = q.private_download_url(download_url)
+            # download_url = q.private_download_url(download_url)
             return download_url, None
         else:
             # 上传失败，info 对象包含了错误信息

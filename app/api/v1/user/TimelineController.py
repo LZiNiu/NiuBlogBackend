@@ -17,15 +17,3 @@ async def get_timeline(
     return Result.success(timeline_events)
 
 
-@router.post("", response_model=Result[None])
-async def create_timeline(
-    timeline_events: list[Timeline] | Timeline,
-    service: TimelineService = Depends(get_timeline_service),
-) -> Result[None]:
-    """创建时间轴事件"""
-    if isinstance(timeline_events, list):
-        await service.create_batch(timeline_events)
-    else:
-        await service.create_batch([timeline_events])
-    return Result.success()
-
